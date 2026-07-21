@@ -14,6 +14,7 @@ function invoke<C extends IpcChannel>(
 const api = {
   debug: {
     versions: () => invoke('debug:versions'),
+    dbStats: () => invoke('debug:dbStats'),
   },
 }
 

@@ -14,8 +14,14 @@ export interface DebugVersions {
   sqlite: string
 }
 
+/** Row counts per table — dev-only visibility into the DB. */
+export interface DbStats {
+  tables: Record<string, number>
+}
+
 export interface IpcContract {
   'debug:versions': { request: void; response: DebugVersions }
+  'debug:dbStats': { request: void; response: DbStats }
 }
 
 export type IpcChannel = keyof IpcContract

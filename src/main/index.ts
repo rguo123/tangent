@@ -1,5 +1,6 @@
 import { join } from 'path'
 import { app, BrowserWindow } from 'electron'
+import { initStorage } from './db/init'
 import { registerDebugIpc } from './ipc/debug'
 
 function createWindow(): void {
@@ -22,7 +23,8 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
-  registerDebugIpc()
+  const storage = initStorage(app.getPath('userData'))
+  registerDebugIpc(storage.db)
   createWindow()
 
   app.on('activate', () => {

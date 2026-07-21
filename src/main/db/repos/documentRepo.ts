@@ -1,0 +1,61 @@
+import type { Database } from 'better-sqlite3'
+import type { Document, SourceType } from '@shared/entities'
+import { newId, nowIso } from '../util'
+
+interface DocumentRow {
+  id: string
+  field_id: string
+  title: string
+  source_type: SourceType
+  content_ref: string | null
+  created_at: string
+}
+
+function toDocument(r: DocumentRow): Document {
+  return {
+    id: r.id,
+    fieldId: r.field_id,
+    title: r.title,
+    sourceType: r.source_type,
+    contentRef: r.content_ref,
+    createdAt: r.created_at,
+  }
+}
+
+export interface CreateDocumentInput {
+  fieldId: string
+  title: string
+  sourceType: SourceType
+  /** Required for pdf/markdown/generated; must be null for chat_transcript (CHECK-enforced). */
+  contentRef: string | null
+}
+
+export function createDocumentRepo(db: Database) {
+  const insert = db.prepare(
+    `INSERT INTO document (id, field_id, title, source_type, content_ref, created_at)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+  )
+  const byId = db.prepare('SELECT * FROM document WHERE id = ?')
+  const byField = db.prepare('SELECT * FROM document WHERE field_id = ? ORDER BY created_at, rowid')
+
+  function get(id: string): Document | null {
+    const row = byId.get(id) as DocumentRow | undefined
+    return row ? toDocument(row) : null
+  }
+
+  return {
+    create(input: CreateDocumentInput): Document {
+      const id = newId()
+      insert.run(id, input.fieldId, input.title, input.sourceType, input.contentRef, nowIso())
+      return get(id)!
+    },
+
+    getById: get,
+
+    listByField(fieldId: string): Document[] {
+      return (byField.all(fieldId) as DocumentRow[]).map(toDocument)
+    },
+  }
+}
+
+export type DocumentRepo = ReturnType<typeof createDocumentRepo>

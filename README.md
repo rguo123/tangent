@@ -34,9 +34,14 @@ Version pins that matter: `vite@^7` (electron-vite 5 does not support Vite 8) wi
 
 ```
 src/
-├── main/       # Electron main process: DB, documents, agent layer, IPC handlers
+├── main/       # Electron main process
+│   ├── db/     #   connection, migrations, repos (one per entity), bootstrap
+│   └── ipc/    #   typed ipcMain.handle registrations, one file per domain
 ├── preload/    # contextBridge — the only bridge between renderer and main
 ├── renderer/   # React UI (panes, sidebar)
 └── shared/     # entity types + IPC contracts, imported by all three
 tests/          # vitest, exercises main-process layers directly
+
+App data lives in `app.getPath('userData')` (macOS: `~/Library/Application Support/tangent/`):
+`tangent.db` plus `documents/` for imported sources — one folder, so backup is a copy command.
 ```
