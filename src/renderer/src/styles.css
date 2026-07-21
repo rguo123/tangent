@@ -1,0 +1,39 @@
+:root {
+  color-scheme: light dark;
+  font-family:
+    system-ui,
+    -apple-system,
+    sans-serif;
+}
+
+body {
+  margin: 0;
+}
+
+.app {
+  max-width: 640px;
+  margin: 4rem auto;
+  padding: 0 1.5rem;
+}
+
+.subtitle {
+  opacity: 0.6;
+}
+
+.error {
+  color: #c0392b;
+}
+
+table {
+  border-collapse: collapse;
+  margin-top: 1rem;
+}
+
+td {
+  padding: 0.35rem 1.25rem 0.35rem 0;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.25);
+}
+
+td:first-child {
+  opacity: 0.7;
+}
