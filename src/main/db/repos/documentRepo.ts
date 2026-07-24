@@ -2,7 +2,7 @@ import type { Database } from 'better-sqlite3'
 import type { Document, SourceType } from '@shared/entities'
 import { newId, nowIso } from '../util'
 
-interface DocumentRow {
+export interface DocumentRow {
   id: string
   field_id: string
   title: string
@@ -11,7 +11,7 @@ interface DocumentRow {
   created_at: string
 }
 
-function toDocument(r: DocumentRow): Document {
+export function toDocument(r: DocumentRow): Document {
   return {
     id: r.id,
     fieldId: r.field_id,
@@ -23,6 +23,9 @@ function toDocument(r: DocumentRow): Document {
 }
 
 export interface CreateDocumentInput {
+  /** Caller-supplied when the id must exist before the row (a PDF is copied to
+   *  documents/<id>.pdf before insert); generated otherwise. */
+  id?: string
   fieldId: string
   title: string
   sourceType: SourceType
@@ -45,7 +48,7 @@ export function createDocumentRepo(db: Database) {
 
   return {
     create(input: CreateDocumentInput): Document {
-      const id = newId()
+      const id = input.id ?? newId()
       insert.run(id, input.fieldId, input.title, input.sourceType, input.contentRef, nowIso())
       return get(id)!
     },

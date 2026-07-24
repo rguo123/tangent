@@ -2,6 +2,9 @@ import { join } from 'path'
 import { app, BrowserWindow } from 'electron'
 import { initStorage } from './db/init'
 import { registerDebugIpc } from './ipc/debug'
+import { registerDocumentIpc } from './ipc/documents'
+import { registerEntryIpc } from './ipc/entries'
+import { registerThreadIpc } from './ipc/threads'
 
 function createWindow(): void {
   const win = new BrowserWindow({
@@ -23,8 +26,12 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
-  const storage = initStorage(app.getPath('userData'))
+  // Env override keeps automated runs / scratch profiles out of the real DB.
+  const storage = initStorage(process.env.TANGENT_DATA_DIR ?? app.getPath('userData'))
   registerDebugIpc(storage.db)
+  registerDocumentIpc(storage)
+  registerThreadIpc(storage)
+  registerEntryIpc(storage)
   createWindow()
 
   app.on('activate', () => {

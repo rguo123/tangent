@@ -1,70 +1,68 @@
 import { useEffect, useState } from 'react'
-import type { DbStats, DebugVersions } from '@shared/ipc'
+import Sidebar from './sidebar/Sidebar'
+import DocumentPane from './panes/DocumentPane/DocumentPane'
+import NotesPane from './panes/NotesPane/NotesPane'
+import DevStats from './DevStats'
+import { useAppStore } from './state/appStore'
+import { useTimelineStore } from './state/timelineStore'
 
 export default function App() {
-  const [versions, setVersions] = useState<DebugVersions | null>(null)
-  const [stats, setStats] = useState<DbStats | null>(null)
-  const [error, setError] = useState<string | null>(null)
-
-  const refreshStats = () => {
-    window.tangent.debug
-      .dbStats()
-      .then(setStats)
-      .catch((err: unknown) => setError(String(err)))
-  }
+  const refreshThreads = useAppStore((s) => s.refreshThreads)
+  const activeThreadId = useAppStore((s) => s.activeThreadId)
+  const documentPaneOpen = useAppStore((s) => s.documentPaneOpen)
+  const notesPaneOpen = useAppStore((s) => s.notesPaneOpen)
+  const toggleDocumentPane = useAppStore((s) => s.toggleDocumentPane)
+  const toggleNotesPane = useAppStore((s) => s.toggleNotesPane)
+  const error = useAppStore((s) => s.error)
+  const clearError = useAppStore((s) => s.clearError)
+  const [showDevStats, setShowDevStats] = useState(false)
 
   useEffect(() => {
-    window.tangent.debug
-      .versions()
-      .then(setVersions)
-      .catch((err: unknown) => setError(String(err)))
-    refreshStats()
-  }, [])
+    refreshThreads()
+  }, [refreshThreads])
+
+  // Timeline loads at app level (not in NotesPane) — the document pane needs
+  // the thread's anchors for highlights even when the notes pane is closed.
+  useEffect(() => {
+    void useTimelineStore.getState().load(activeThreadId)
+  }, [activeThreadId])
 
   return (
-    <div className="app">
-      <h1>Tangent</h1>
-      <p className="subtitle">Phase 1 — storage layer</p>
-      {error && <p className="error">IPC error: {error}</p>}
-      {versions && (
-        <table>
-          <tbody>
-            <tr>
-              <td>Electron</td>
-              <td>{versions.electron}</td>
-            </tr>
-            <tr>
-              <td>Chrome</td>
-              <td>{versions.chrome}</td>
-            </tr>
-            <tr>
-              <td>Node</td>
-              <td>{versions.node}</td>
-            </tr>
-            <tr>
-              <td>SQLite (native, via IPC)</td>
-              <td>{versions.sqlite}</td>
-            </tr>
-          </tbody>
-        </table>
+    <div className="app-shell">
+      <header className="app-header">
+        <span className="app-name">Tangent</span>
+        <div className="header-actions">
+          <button
+            className={documentPaneOpen ? 'pane-toggle on' : 'pane-toggle'}
+            onClick={toggleDocumentPane}
+          >
+            Document
+          </button>
+          <button
+            className={notesPaneOpen ? 'pane-toggle on' : 'pane-toggle'}
+            onClick={toggleNotesPane}
+          >
+            Notes
+          </button>
+          <button className="pane-toggle" onClick={() => setShowDevStats((v) => !v)}>
+            DB
+          </button>
+        </div>
+      </header>
+      {error && (
+        <div className="error-banner">
+          {error} <button onClick={clearError}>dismiss</button>
+        </div>
       )}
-      <h2>
-        DB stats <button onClick={refreshStats}>refresh</button>
-      </h2>
-      {stats ? (
-        <table>
-          <tbody>
-            {Object.entries(stats.tables).map(([table, count]) => (
-              <tr key={table}>
-                <td>{table}</td>
-                <td>{count}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      ) : (
-        !error && <p>Loading…</p>
-      )}
+      <div className="app-body">
+        <Sidebar />
+        {documentPaneOpen && <DocumentPane />}
+        {notesPaneOpen && <NotesPane />}
+        {!documentPaneOpen && !notesPaneOpen && (
+          <p className="pane-status all-closed">Both panes are closed.</p>
+        )}
+      </div>
+      {showDevStats && <DevStats onClose={() => setShowDevStats(false)} />}
     </div>
   )
 }

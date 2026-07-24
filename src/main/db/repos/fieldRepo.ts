@@ -22,6 +22,10 @@ export function createFieldRepo(db: Database) {
     return row ? toField(row) : null
   }
 
+  function list(): Field[] {
+    return (all.all() as FieldRow[]).map(toField)
+  }
+
   return {
     create(name: string): Field {
       const id = newId()
@@ -31,8 +35,14 @@ export function createFieldRepo(db: Database) {
 
     getById: get,
 
-    list(): Field[] {
-      return (all.all() as FieldRow[]).map(toField)
+    list,
+
+    /** The Field everything hangs off while the MVP is single-Field: the
+     *  oldest row, seeded by initStorage. */
+    getDefault(): Field {
+      const field = list()[0]
+      if (!field) throw new Error('No Field exists — initStorage seeds one, so this is a bug')
+      return field
     },
   }
 }

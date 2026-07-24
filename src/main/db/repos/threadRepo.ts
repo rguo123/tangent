@@ -1,6 +1,8 @@
 import type { Database } from 'better-sqlite3'
-import type { Thread, ThreadStatus } from '@shared/entities'
+import type { SourceType, Thread, ThreadStatus } from '@shared/entities'
+import type { ThreadListItem } from '@shared/ipc'
 import { newId, nowIso } from '../util'
+import { toDocument } from './documentRepo'
 
 interface ThreadRow {
   id: string
@@ -24,6 +26,15 @@ function toThread(r: ThreadRow): Thread {
   }
 }
 
+type ThreadWithDocumentRow = ThreadRow & {
+  doc_id: string
+  doc_field_id: string
+  doc_title: string
+  doc_source_type: SourceType
+  doc_content_ref: string | null
+  doc_created_at: string
+}
+
 export interface CreateThreadInput {
   fieldId: string
   documentId: string
@@ -42,6 +53,15 @@ export function createThreadRepo(db: Database) {
     'SELECT * FROM thread WHERE field_id = ? AND status = ? ORDER BY created_at DESC, rowid DESC',
   )
   const updateStatus = db.prepare('UPDATE thread SET status = ? WHERE id = ?')
+  const byFieldWithDocument = db.prepare(
+    `SELECT t.*,
+            d.id AS doc_id, d.field_id AS doc_field_id, d.title AS doc_title,
+            d.source_type AS doc_source_type, d.content_ref AS doc_content_ref,
+            d.created_at AS doc_created_at
+     FROM thread t JOIN document d ON d.id = t.document_id
+     WHERE t.field_id = ?
+     ORDER BY t.created_at DESC, t.rowid DESC`,
+  )
 
   function get(id: string): Thread | null {
     const row = byId.get(id) as ThreadRow | undefined
@@ -67,6 +87,21 @@ export function createThreadRepo(db: Database) {
     listByField(fieldId: string, status?: ThreadStatus): Thread[] {
       const rows = status ? byFieldAndStatus.all(fieldId, status) : byField.all(fieldId)
       return (rows as ThreadRow[]).map(toThread)
+    },
+
+    /** The sidebar's read model: every thread joined with its document. */
+    listByFieldWithDocument(fieldId: string): ThreadListItem[] {
+      return (byFieldWithDocument.all(fieldId) as ThreadWithDocumentRow[]).map((r) => ({
+        thread: toThread(r),
+        document: toDocument({
+          id: r.doc_id,
+          field_id: r.doc_field_id,
+          title: r.doc_title,
+          source_type: r.doc_source_type,
+          content_ref: r.doc_content_ref,
+          created_at: r.doc_created_at,
+        }),
+      }))
     },
 
     setStatus(id: string, status: ThreadStatus): void {
