@@ -1,0 +1,62 @@
+import type { Storage } from '../db/init'
+import { readDocumentContent } from './import'
+import { extractPdfText } from './pdfText'
+
+/**
+ * A Document as plain text, for anything that feeds it to a model.
+ *
+ * Built on `readDocumentContent` so `content_ref` semantics (managed file path
+ * vs. inline blob) stay owned by one module — this one only knows how to turn
+ * each content shape into characters.
+ */
+
+/** Documents are immutable after import, so text extracted once stays valid
+ *  for the life of the process. The *promise* is cached, not the result:
+ *  two questions asked while the first extraction is still running should
+ *  join it rather than each parse the PDF again. */
+const cache = new Map<string, Promise<string>>()
+
+/**
+ * `maxChars` bounds both the extraction and the result — a book would
+ * otherwise cost more in tokens than it adds in grounding. Never throws: a
+ * scanned or malformed source yields '' so callers can degrade rather than
+ * fail.
+ */
+export function readDocumentText(
+  storage: Storage,
+  documentId: string,
+  maxChars: number,
+): Promise<string> {
+  const cached = cache.get(documentId)
+  if (cached) return cached
+
+  const pending = extract(storage, documentId, maxChars).catch((err) => {
+    console.warn(`Could not read text from document ${documentId}: ${String(err)}`)
+    return ''
+  })
+  cache.set(documentId, pending)
+  return pending
+}
+
+async function extract(storage: Storage, documentId: string, maxChars: number): Promise<string> {
+  const document = storage.repos.documents.getById(documentId)
+  // A chat_transcript's content *is* its thread's entries, which reach the
+  // model as conversation — there's no standalone text to read.
+  if (!document || document.sourceType === 'chat_transcript') return ''
+
+  const content = readDocumentContent(storage, documentId)
+  if (content.sourceType === 'pdf') {
+    // pdf.js rejects a Buffer outright — it wants a plain Uint8Array view.
+    return extractPdfText(new Uint8Array(content.data), maxChars)
+  }
+  return truncate(content.content, maxChars)
+}
+
+function truncate(text: string, max: number): string {
+  return text.length <= max ? text : `${text.slice(0, max)}\n\n[...truncated]`
+}
+
+/** Test hook — documents are immutable in the app, so nothing else needs this. */
+export function clearDocumentTextCache(): void {
+  cache.clear()
+}

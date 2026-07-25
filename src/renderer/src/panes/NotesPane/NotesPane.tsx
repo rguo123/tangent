@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import type { Anchor, Entry } from '@shared/entities'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { isUnansweredResponse, type Anchor, type Entry } from '@shared/entities'
 import { useAppStore } from '../../state/appStore'
 import { useTimelineStore } from '../../state/timelineStore'
 import Composer from './Composer'
@@ -27,6 +27,83 @@ function QuoteChip({ anchor }: { anchor: Anchor }) {
   )
 }
 
+/** Kind, timestamp, and whatever action the entry offers. */
+function EntryHeader({ entry, children }: { entry: Entry; children?: ReactNode }) {
+  return (
+    <header className="entry-meta">
+      <span className="entry-kind">{KIND_LABEL[entry.kind]}</span>
+      <time>{new Date(entry.createdAt).toLocaleString()}</time>
+      {children}
+    </header>
+  )
+}
+
+/**
+ * An `ai_response` is in exactly one of these. A live stream (key present in
+ * `streaming`) is thinking then answering; without one, an empty body is a
+ * failed ask. That holds after a relaunch too, with no status column.
+ */
+type AnswerState = 'thinking' | 'answering' | 'answered' | 'failed'
+
+function AiResponse({ entry, replyingTo }: { entry: Entry; replyingTo: Entry | null }) {
+  const live = useTimelineStore((s) => s.streaming[entry.id])
+  const error = useTimelineStore((s) => s.failed[entry.id])
+  const retryAsk = useTimelineStore((s) => s.retryAsk)
+  const setPinned = useTimelineStore((s) => s.setPinned)
+
+  const state: AnswerState =
+    live !== undefined
+      ? live
+        ? 'answering'
+        : 'thinking'
+      : isUnansweredResponse(entry)
+        ? 'failed'
+        : 'answered'
+
+  return (
+    <article className="entry entry-ai_response">
+      <EntryHeader entry={entry}>
+        {state === 'answered' && (
+          <button
+            className={entry.pinned ? 'entry-action pinned' : 'entry-action'}
+            title={
+              entry.pinned
+                ? 'Pinned — this answer counts as engagement for extraction'
+                : 'Pin to keep this answer as a durable note'
+            }
+            onClick={() => void setPinned(entry.id, !entry.pinned)}
+          >
+            {entry.pinned ? '★ pinned' : '☆ pin'}
+          </button>
+        )}
+        {state === 'failed' && (
+          <button className="entry-action" onClick={() => void retryAsk(entry.id)}>
+            retry
+          </button>
+        )}
+      </EntryHeader>
+      {/* Only shown when the answer isn't sitting right under its question —
+          two questions in flight land out of order. */}
+      {replyingTo && (
+        <p className="entry-reply-to" title={replyingTo.body}>
+          replying to “{replyingTo.body}”
+        </p>
+      )}
+      {error && <p className="entry-error">{error}</p>}
+      {state === 'thinking' && <p className="entry-body entry-thinking">Thinking…</p>}
+      {state === 'failed' && (
+        <p className="entry-body entry-thinking">No answer — retry to try again.</p>
+      )}
+      {(state === 'answering' || state === 'answered') && (
+        <p className="entry-body">
+          {state === 'answering' ? live : entry.body}
+          {state === 'answering' && <span className="stream-caret" />}
+        </p>
+      )}
+    </article>
+  )
+}
+
 function EntryItem({ entry, anchor }: { entry: Entry; anchor: Anchor | null }) {
   const updateEntryBody = useTimelineStore((s) => s.updateEntryBody)
   const [editing, setEditing] = useState(false)
@@ -39,14 +116,9 @@ function EntryItem({ entry, anchor }: { entry: Entry; anchor: Anchor | null }) {
   }
 
   return (
-    <article
-      className={`entry entry-${entry.kind}`}
-      data-anchor-id={entry.anchorId ?? undefined}
-    >
-      <header className="entry-meta">
-        <span className="entry-kind">{KIND_LABEL[entry.kind]}</span>
-        <time>{new Date(entry.createdAt).toLocaleString()}</time>
-        {entry.kind !== 'ai_response' && !editing && (
+    <article className={`entry entry-${entry.kind}`} data-anchor-id={entry.anchorId ?? undefined}>
+      <EntryHeader entry={entry}>
+        {!editing && (
           <button
             className="entry-action"
             onClick={() => {
@@ -57,7 +129,7 @@ function EntryItem({ entry, anchor }: { entry: Entry; anchor: Anchor | null }) {
             edit
           </button>
         )}
-      </header>
+      </EntryHeader>
       {anchor && <QuoteChip anchor={anchor} />}
       {editing ? (
         <div className="entry-edit">
@@ -84,6 +156,7 @@ export default function NotesPane() {
   const listRef = useRef<HTMLDivElement>(null)
 
   const anchorById = useMemo(() => new Map(anchors.map((a) => [a.id, a])), [anchors])
+  const entryById = useMemo(() => new Map(entries.map((e) => [e.id, e])), [entries])
 
   // Cross-navigation: highlight click → scroll to that anchor's entries and
   // flash them.
@@ -130,13 +203,20 @@ export default function NotesPane() {
             No entries yet — write a note below, or select text in the document.
           </p>
         )}
-        {entries.map((entry) => (
-          <EntryItem
-            key={entry.id}
-            entry={entry}
-            anchor={entry.anchorId ? (anchorById.get(entry.anchorId) ?? null) : null}
-          />
-        ))}
+        {entries.map((entry, index) => {
+          if (entry.kind === 'ai_response') {
+            const parent = entry.parentEntryId ? (entryById.get(entry.parentEntryId) ?? null) : null
+            const adjacent = entries[index - 1]?.id === entry.parentEntryId
+            return <AiResponse key={entry.id} entry={entry} replyingTo={adjacent ? null : parent} />
+          }
+          return (
+            <EntryItem
+              key={entry.id}
+              entry={entry}
+              anchor={entry.anchorId ? (anchorById.get(entry.anchorId) ?? null) : null}
+            />
+          )
+        })}
       </div>
       <Composer />
     </section>

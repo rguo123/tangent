@@ -21,6 +21,14 @@ export default function App() {
     refreshThreads()
   }, [refreshThreads])
 
+  // Streaming answers arrive as main-process pushes, not as responses to a
+  // call — subscribe once for the app's lifetime.
+  useEffect(() => {
+    const unsubscribe = useTimelineStore.getState().subscribeAgent()
+    void useTimelineStore.getState().loadAgentStatus()
+    return unsubscribe
+  }, [])
+
   // Timeline loads at app level (not in NotesPane) — the document pane needs
   // the thread's anchors for highlights even when the notes pane is closed.
   useEffect(() => {

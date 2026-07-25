@@ -35,8 +35,10 @@ export interface TimelineData {
 
 export interface CreateEntryRequest {
   threadId: string
-  /** ai_response entries are created by the agent path (Phase 4), never over this channel. */
-  kind: 'note' | 'question'
+  /** Notes only. A question always comes with the `ai_response` that answers
+   *  it, so `entries:ask` is the only way to create one — narrowing the type
+   *  here is what keeps a second caller from minting an orphan question. */
+  kind: 'note'
   body: string
   /** Present when the entry is anchored to a document selection — the anchor
    *  and entry are created in one transaction. */
@@ -46,6 +48,33 @@ export interface CreateEntryRequest {
 export interface CreateEntryResult {
   entry: Entry
   anchor: Anchor | null
+}
+
+/** Same shape as a `question` CreateEntryRequest — asking is "create a question
+ *  entry, then answer it", so the request carries the same optional anchor. */
+export type AskRequest = Omit<CreateEntryRequest, 'kind'>
+
+/** Returned as soon as both rows exist; the reply arrives over `agent:delta`
+ *  and lands in `response.body` by the time `agent:end` fires. */
+export interface AskResult {
+  question: Entry
+  /** The ai_response entry the answer streams into. Body starts empty. */
+  response: Entry
+  anchor: Anchor | null
+}
+
+/** What the composer needs to know before the user asks anything. */
+export interface AgentStatus {
+  provider: string
+  model: string
+  /** The endpoint serving `model` — the same model id means different things
+   *  on different hosts, so the UI shows which one is in play. */
+  baseUrl: string
+  embeddingProvider: string
+  embeddingModel: string
+  /** Null when the provider can be called; a human-readable reason (missing
+   *  API key) otherwise, so the UI can warn before the first ask fails. */
+  unavailable: string | null
 }
 
 export interface DebugVersions {
@@ -71,6 +100,16 @@ export interface IpcContract {
   'entries:create': { request: CreateEntryRequest; response: CreateEntryResult }
   /** Bumps updated_at — the extraction watermark (spec §5.1) depends on it. */
   'entries:updateBody': { request: { entryId: string; body: string }; response: Entry }
+  /** Pinning an ai_response is the curation gesture that makes it extraction
+   *  fodder (spec §5.1). */
+  'entries:setPinned': { request: { entryId: string; pinned: boolean }; response: Entry }
+  /** Creates the question + ai_response pair and starts streaming. Resolves
+   *  once the rows exist — not once the answer is done. */
+  'entries:ask': { request: AskRequest; response: AskResult }
+  /** Re-runs the answer for an existing ai_response entry (failed or partial).
+   *  The new text arrives over `agent:delta`, so there's nothing to return. */
+  'entries:retryAsk': { request: { entryId: string }; response: void }
+  'agent:status': { request: void; response: AgentStatus }
   'debug:versions': { request: void; response: DebugVersions }
   'debug:dbStats': { request: void; response: DbStats }
 }
@@ -78,3 +117,23 @@ export interface IpcContract {
 export type IpcChannel = keyof IpcContract
 export type IpcRequest<C extends IpcChannel> = IpcContract[C]['request']
 export type IpcResponse<C extends IpcChannel> = IpcContract[C]['response']
+
+/**
+ * Main → renderer pushes. Everything else in this file is request/response;
+ * streaming needs the other direction, so it gets its own map. Same rule
+ * applies: payload types are declared once and both sides derive from them.
+ */
+export interface IpcEvents {
+  /** An answer started generating. Emitted before the provider is called, so
+   *  in-flight state is driven purely by events — the renderer never has to
+   *  race a delta against the `entries:ask` response. */
+  'agent:start': { entryId: string }
+  /** A chunk of an in-flight answer, to append to `entryId`'s live text. */
+  'agent:delta': { entryId: string; text: string }
+  /** The stream finished. `error` is null on success; on failure the entry
+   *  keeps whatever partial body arrived and the ask is retryable. */
+  'agent:end': { entryId: string; error: string | null }
+}
+
+export type IpcEventChannel = keyof IpcEvents
+export type IpcEventPayload<C extends IpcEventChannel> = IpcEvents[C]

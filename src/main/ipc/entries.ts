@@ -14,8 +14,17 @@ export function registerEntryIpc(storage: Storage): void {
 
   handle('entries:updateBody', ({ entryId, body }) => {
     entries.updateBody(entryId, body)
+    return readEntry(entryId)
+  })
+
+  handle('entries:setPinned', ({ entryId, pinned }) => {
+    entries.setPinned(entryId, pinned)
+    return readEntry(entryId)
+  })
+
+  function readEntry(entryId: string) {
     const entry = entries.getById(entryId)
     if (!entry) throw new Error(`No entry ${entryId}`)
     return entry
-  })
+  }
 }

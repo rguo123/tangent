@@ -1,6 +1,14 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { ThreadStatus } from '@shared/entities'
-import type { CreateEntryRequest, IpcChannel, IpcRequest, IpcResponse } from '@shared/ipc'
+import type {
+  AskRequest,
+  CreateEntryRequest,
+  IpcChannel,
+  IpcEventChannel,
+  IpcEventPayload,
+  IpcRequest,
+  IpcResponse,
+} from '@shared/ipc'
 
 /** Typed wrapper over ipcRenderer.invoke — request/response types are derived
  *  from the IpcContract entry for the channel. Channels with `request: void`
@@ -10,6 +18,17 @@ function invoke<C extends IpcChannel>(
   ...args: IpcRequest<C> extends void ? [] : [IpcRequest<C>]
 ): Promise<IpcResponse<C>> {
   return ipcRenderer.invoke(channel, ...args)
+}
+
+/** The push direction: subscribe to a main-process event, get an unsubscribe
+ *  back. The raw IpcRendererEvent never crosses the bridge — only the payload. */
+function subscribe<C extends IpcEventChannel>(
+  channel: C,
+  listener: (payload: IpcEventPayload<C>) => void,
+): () => void {
+  const wrapped = (_event: unknown, payload: IpcEventPayload<C>): void => listener(payload)
+  ipcRenderer.on(channel, wrapped)
+  return () => ipcRenderer.off(channel, wrapped)
 }
 
 const api = {
@@ -28,6 +47,19 @@ const api = {
   entries: {
     create: (req: CreateEntryRequest) => invoke('entries:create', req),
     updateBody: (entryId: string, body: string) => invoke('entries:updateBody', { entryId, body }),
+    setPinned: (entryId: string, pinned: boolean) =>
+      invoke('entries:setPinned', { entryId, pinned }),
+  },
+  agent: {
+    status: () => invoke('agent:status'),
+    ask: (req: AskRequest) => invoke('entries:ask', req),
+    retry: (entryId: string) => invoke('entries:retryAsk', { entryId }),
+    onStart: (listener: (payload: IpcEventPayload<'agent:start'>) => void) =>
+      subscribe('agent:start', listener),
+    onDelta: (listener: (payload: IpcEventPayload<'agent:delta'>) => void) =>
+      subscribe('agent:delta', listener),
+    onEnd: (listener: (payload: IpcEventPayload<'agent:end'>) => void) =>
+      subscribe('agent:end', listener),
   },
   debug: {
     versions: () => invoke('debug:versions'),

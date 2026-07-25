@@ -94,8 +94,8 @@ One folder holds everything, so backup is a copy command:
 | `react-pdf` | PDF rendering | wraps pdf.js; **worker must be configured for Vite** — import `pdfjs-dist/build/pdf.worker.min.mjs?url` and set `GlobalWorkerOptions.workerSrc`. Budget time for this in Phase 2; it's the classic react-pdf-under-a-bundler snag. |
 | `@tiptap/react`, `@tiptap/starter-kit` | markdown read view + Entry composer | Pin major — Tiptap has had breaking major churn. |
 | `ts-fsrs` | review scheduling | library, not an agent (spec §5) |
-| `@anthropic-ai/sdk` | chat + structured output provider | see Phase 4 for model choices |
-| `voyageai` | embeddings provider | Anthropic has no embeddings endpoint; see Phase 4 |
+| `openai` | chat + structured output provider | the OpenAI *wire format*, not the vendor — see Phase 4 |
+| *(embeddings)* | embeddings provider | chat aggregators mostly don't serve them; see Phase 4 |
 | `zod` | schemas for structured LLM output + IPC payload validation | pairs with the SDK's `zodOutputFormat` helper |
 | `zustand` | renderer state | small, no boilerplate; renderer state is thin anyway since main owns truth |
 | `vitest` | tests | runs against the DB and agent layers directly (no Electron needed) |
@@ -194,10 +194,12 @@ interface LLMProvider {
 }
 ```
 
-**Provider reality check:** Anthropic's API covers `chat` and `structured` (via `output_config.format` / `messages.parse` with `zodOutputFormat`) but **has no embeddings endpoint**. So the spec's "embeddings come from the same abstraction" holds at the *interface* level, while the default implementation composes two vendors behind it:
+**Provider reality check:** the services that serve cheap chat mostly **don't serve embeddings**. So the spec's "embeddings come from the same abstraction" holds at the *interface* level, while the implementation composes two vendors behind it:
 
-- `chat` / `structured` → `@anthropic-ai/sdk`, model `claude-opus-4-8` (streaming on for chat; adaptive thinking; structured extraction calls can run `effort: "low"`–`"medium"` since they're high-volume background work — tune later)
-- `embed` → Voyage AI (`voyage-3.5` class model) — Anthropic's recommended embeddings partner. OpenAI `text-embedding-3-small` is a drop-in alternative behind the same interface.
+- `chat` / `structured` → the **OpenAI wire format** via the `openai` SDK pointed at any `baseUrl`. One implementation covers OpenRouter (default), Groq, DeepSeek, Together, OpenAI, and local Ollama / LM Studio; switching is a `baseUrl` + `model` edit in `agent.json`, not new code. Structured output uses `response_format: json_schema`, falling back to JSON mode + an inlined schema on endpoints that can't enforce one — zod validates either way.
+- `embed` → Voyage by default; `openai-compatible` embeddings (OpenAI's `text-embedding-3-small`, Ollama's `nomic-embed-text`) are a config switch.
+
+*(As built, July 2026: the plan originally specified `@anthropic-ai/sdk` with `claude-opus-4-8` and the `voyageai` package. Cost drove the switch to the OpenAI-compatible seam — the default model is ~20x cheaper than the Opus tier and one config line from ~140x cheaper. The abstraction was unchanged by the swap, which is the evidence it was drawn in the right place: `ask.ts`, the IPC layer, and the UI were untouched.)*
 - `MockProvider` — deterministic canned responses + hash-based fake embeddings, used by all tests and a `TANGENT_MOCK_LLM=1` dev mode so the app runs offline
 
 Config: JSON file in the app-data dir (`provider`, `model`, `embeddingProvider`); API keys via env var first (settings UI is Phase 7 polish). Store embeddings as `Float32Array` → BLOB, with `embedding_model` recorded on the concept row so a future model switch can detect stale vectors.

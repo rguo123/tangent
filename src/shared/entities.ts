@@ -73,6 +73,16 @@ export interface Entry {
   extractedAt: string | null
 }
 
+/**
+ * An `ai_response` with an empty body is an ask that failed or hasn't landed
+ * yet — the app's stand-in for a status column, and the one place that
+ * convention is expressed as code. Main skips these when replaying a thread as
+ * conversation; the renderer draws them as retryable.
+ */
+export function isUnansweredResponse(entry: Entry): boolean {
+  return entry.kind === 'ai_response' && entry.body.trim() === ''
+}
+
 export interface Concept {
   id: string
   fieldId: string

@@ -1,4 +1,8 @@
+import { mkdtempSync, rmSync } from 'fs'
+import { tmpdir } from 'os'
+import { join } from 'path'
 import { openDatabase } from '../../src/main/db/connection'
+import { initStorage, type Storage } from '../../src/main/db/init'
 import { migrate } from '../../src/main/db/migrations'
 import { createRepos, type Repos } from '../../src/main/db/repos'
 import type { Database } from 'better-sqlite3'
@@ -13,6 +17,22 @@ export function testDb(): TestDb {
   const db = openDatabase(':memory:')
   migrate(db)
   return { db, repos: createRepos(db) }
+}
+
+/** Real on-disk storage, for anything that touches the documents dir (import,
+ *  PDF text extraction) — an in-memory DB isn't enough there. Close the DB
+ *  before removing the dir, which is what `cleanup` orders correctly. */
+export function tempStorage(): { storage: Storage; dataDir: string; cleanup: () => void } {
+  const dataDir = mkdtempSync(join(tmpdir(), 'tangent-test-'))
+  const storage = initStorage(dataDir)
+  return {
+    storage,
+    dataDir,
+    cleanup: () => {
+      storage.db.close()
+      rmSync(dataDir, { recursive: true, force: true })
+    },
+  }
 }
 
 /** field → concept → one draft recall card, for flashcard/review tests. */

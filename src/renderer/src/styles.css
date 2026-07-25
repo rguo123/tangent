@@ -321,6 +321,54 @@ body {
   border-left: 3px solid rgba(122, 90, 245, 0.8);
 }
 
+.entry-ai_response {
+  border-left: 3px solid rgba(38, 166, 154, 0.8);
+  background: var(--muted);
+}
+
+.entry-reply-to {
+  margin: 0 0 0.3rem;
+  font-size: 0.72rem;
+  opacity: 0.6;
+  font-style: italic;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.entry-error {
+  margin: 0 0 0.3rem;
+  font-size: 0.75rem;
+  color: var(--error);
+}
+
+.entry-thinking {
+  opacity: 0.6;
+  font-style: italic;
+}
+
+.entry-action.pinned {
+  opacity: 1;
+}
+
+/* Blinking cursor at the end of an answer still streaming in. */
+.stream-caret {
+  display: inline-block;
+  width: 0.45em;
+  height: 1em;
+  margin-left: 0.1em;
+  vertical-align: text-bottom;
+  background: currentColor;
+  opacity: 0.5;
+  animation: stream-blink 1s steps(2, start) infinite;
+}
+
+@keyframes stream-blink {
+  to {
+    visibility: hidden;
+  }
+}
+
 .entry.flash {
   animation: entry-flash 1.6s ease-out;
 }
@@ -487,6 +535,46 @@ body {
 
 .composer-draft-clear:hover {
   opacity: 1;
+}
+
+.composer-modes {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-bottom: 0.35rem;
+}
+
+.composer-mode {
+  border: 1px solid var(--border);
+  background: none;
+  border-radius: 999px;
+  padding: 0.1rem 0.6rem;
+  font: inherit;
+  font-size: 0.72rem;
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+.composer-mode.on {
+  background: var(--muted);
+  opacity: 1;
+  font-weight: 600;
+}
+
+.composer-mode:disabled {
+  cursor: default;
+}
+
+.composer-model {
+  margin-left: auto;
+  font-size: 0.68rem;
+  opacity: 0.45;
+}
+
+.composer-warning {
+  margin: 0 0 0.35rem;
+  font-size: 0.72rem;
+  color: var(--error);
 }
 
 .composer-editor .tiptap {
