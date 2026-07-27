@@ -1,5 +1,5 @@
 import { join } from 'path'
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow, shell } from 'electron'
 import { createAgentService } from './agent/ask'
 import { loadAgentConfig } from './agent/config'
 import { createExtractionService } from './agent/extractionService'
@@ -14,6 +14,11 @@ import { registerEntryIpc } from './ipc/entries'
 import { registerExtractionIpc } from './ipc/extraction'
 import { registerThreadIpc } from './ipc/threads'
 
+/** Hand a link to the OS browser, if it's the kind of link that has one. */
+function openExternally(url: string): void {
+  if (/^https?:/i.test(url)) void shell.openExternal(url)
+}
+
 function createWindow(): void {
   const win = new BrowserWindow({
     width: 1280,
@@ -24,6 +29,19 @@ function createWindow(): void {
       nodeIntegration: false,
       sandbox: false,
     },
+  })
+
+  // Links in rendered markdown (notes, AI answers, documents) belong in the
+  // OS browser. Nothing in this app is a web page to navigate to, so both a
+  // new window and an in-place navigation are always the wrong outcome.
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    openExternally(url)
+    return { action: 'deny' }
+  })
+  win.webContents.on('will-navigate', (event, url) => {
+    if (url === win.webContents.getURL()) return
+    event.preventDefault()
+    openExternally(url)
   })
 
   if (!app.isPackaged && process.env['ELECTRON_RENDERER_URL']) {

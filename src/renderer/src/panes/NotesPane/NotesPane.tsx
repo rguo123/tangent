@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { isUnansweredResponse, type Anchor, type Entry } from '@shared/entities'
+import Markdown from '../../Markdown'
 import { useAppStore } from '../../state/appStore'
 import { useTimelineStore } from '../../state/timelineStore'
 import Composer from './Composer'
@@ -94,11 +95,14 @@ function AiResponse({ entry, replyingTo }: { entry: Entry; replyingTo: Entry | n
       {state === 'failed' && (
         <p className="entry-body entry-thinking">No answer — retry to try again.</p>
       )}
+      {/* Markdown is re-parsed on every delta; partial syntax renders as the
+          plain text it currently is, and resolves as the rest arrives. The
+          caret rides the last block via CSS, so it stays inline. */}
       {(state === 'answering' || state === 'answered') && (
-        <p className="entry-body">
-          {state === 'answering' ? live : entry.body}
-          {state === 'answering' && <span className="stream-caret" />}
-        </p>
+        <Markdown
+          source={state === 'answering' ? live : entry.body}
+          className={state === 'answering' ? 'entry-body streaming' : 'entry-body'}
+        />
       )}
     </article>
   )
@@ -140,7 +144,8 @@ function EntryItem({ entry, anchor }: { entry: Entry; anchor: Anchor | null }) {
           </div>
         </div>
       ) : (
-        <p className="entry-body">{entry.body}</p>
+        // Edit mode is the raw markdown; this is the rendered form of it.
+        <Markdown source={entry.body} className="entry-body" />
       )}
     </article>
   )

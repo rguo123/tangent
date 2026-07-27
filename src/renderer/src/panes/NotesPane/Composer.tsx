@@ -1,14 +1,14 @@
-import { useEffect, useRef } from 'react'
-import { EditorContent, useEditor } from '@tiptap/react'
-import StarterKit from '@tiptap/starter-kit'
+import { useEffect, useRef, useState } from 'react'
 import { activeComposerKind, useTimelineStore } from '../../state/timelineStore'
 
 /**
- * Entry composer. Tiptap so the composing surface matches the markdown read
- * view's stack; bodies are stored as plain text for now (rich formatting is a
- * later concern, not a schema change). Enter submits, Shift+Enter breaks a
- * line. When a document selection armed a draft anchor, it shows as a chip
- * above the input and the submitted entry is anchored to it.
+ * Entry composer. Bodies are stored as the markdown source you typed and
+ * rendered on read, so this is a plain textarea: a rich-text editor here would
+ * spend its features on formatting that `getText()` throws away — a Cmd+B that
+ * looks bold in the box and saves as plain text is worse than no Cmd+B. It also
+ * matches the textarea an existing entry is edited in. Enter submits,
+ * Shift+Enter breaks a line. When a document selection armed a draft anchor, it
+ * shows as a chip above the input and the submitted entry is anchored to it.
  *
  * The note/ask switch decides which path the submission takes: a note is one
  * Entry, an ask is a question Entry plus a streamed `ai_response`. A draft
@@ -21,35 +21,20 @@ export default function Composer() {
   const agentStatus = useTimelineStore((s) => s.agentStatus)
   const asking = useTimelineStore(activeComposerKind) === 'question'
 
-  // handleKeyDown is captured once at editor creation; route through a ref so
-  // submission always sees current editor/store state.
-  const submitRef = useRef<() => void>(() => {})
+  const [body, setBody] = useState('')
+  const inputRef = useRef<HTMLTextAreaElement>(null)
 
-  const editor = useEditor({
-    extensions: [StarterKit],
-    editorProps: {
-      handleKeyDown: (_view, event) => {
-        if (event.key === 'Enter' && !event.shiftKey) {
-          submitRef.current()
-          return true
-        }
-        return false
-      },
-    },
-  })
-
-  submitRef.current = () => {
-    if (!editor) return
-    const body = editor.getText().trim()
-    if (!body) return
-    void useTimelineStore.getState().submitEntry(body)
-    editor.commands.clearContent()
+  const submit = () => {
+    const trimmed = body.trim()
+    if (!trimmed) return
+    void useTimelineStore.getState().submitEntry(trimmed)
+    setBody('')
   }
 
   // Picking note/ask in the document pane should land you typing immediately.
   useEffect(() => {
-    if (draft && editor) editor.commands.focus()
-  }, [draft, editor])
+    if (draft) inputRef.current?.focus()
+  }, [draft])
 
   return (
     <div className="composer">
@@ -96,9 +81,20 @@ export default function Composer() {
       {asking && agentStatus?.unavailable && (
         <p className="composer-warning">{agentStatus.unavailable}</p>
       )}
-      <EditorContent editor={editor} className="composer-editor" />
+      <textarea
+        ref={inputRef}
+        className="composer-editor"
+        value={body}
+        onChange={(e) => setBody(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault()
+            submit()
+          }
+        }}
+      />
       <div className="composer-hint">
-        Enter to {asking ? 'ask' : 'save'} · Shift+Enter for a new line
+        Enter to {asking ? 'ask' : 'save'} · Shift+Enter for a new line · Markdown supported
       </div>
     </div>
   )

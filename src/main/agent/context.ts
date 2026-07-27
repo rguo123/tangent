@@ -26,6 +26,13 @@ const SYSTEM_PREAMBLE = [
   'Ground your answers in that document: quote or point to the specific part you are relying on.',
   'If the document does not settle the question, say so plainly and answer from general knowledge, labelled as such.',
   'Be concise — a few paragraphs at most unless the question demands more.',
+  // The renderer parses every answer as markdown, so this is about what the
+  // reader sees, not a formatting preference: unclosed fences and stray
+  // angle brackets render as damage.
+  'Always reply in well-formed Markdown that renders cleanly: use headings, lists, tables, ' +
+    '`code`, fenced code blocks with a language, and > blockquotes where they help, ' +
+    'close every construct you open, and do not wrap the whole reply in a code fence ' +
+    'or emit raw HTML.',
 ].join(' ')
 
 export interface AskContext {

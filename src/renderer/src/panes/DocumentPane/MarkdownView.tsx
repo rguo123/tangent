@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { EditorContent, useEditor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
-import { marked } from 'marked'
 import { clearRegionHighlights, getAnchorRange, paintAnchors } from '../../lib/highlights'
+import { renderMarkdown } from '../../lib/markdown'
 import { useTimelineStore } from '../../state/timelineStore'
 
 const REGION = 'markdown'
@@ -20,12 +20,15 @@ export default function MarkdownView({
   content: string
   documentId: string
 }) {
-  const html = useMemo(() => marked.parse(content, { async: false }), [content])
+  const html = useMemo(() => renderMarkdown(content, { breaks: false }), [content])
   const editor = useEditor(
     {
       extensions: [StarterKit],
       content: html,
       editable: false,
+      // Lands on the ProseMirror element (not the wrapper), so the rendered
+      // markdown styles are the same ones the entry bodies use.
+      editorProps: { attributes: { class: 'markdown-body' } },
     },
     [html],
   )
