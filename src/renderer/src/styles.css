@@ -328,6 +328,15 @@ body.resizing-vertical * {
   padding: 1rem 1.5rem;
 }
 
+/* Stretched to the live width while a window resize is in flight, so pages
+   don't re-render (and blank their canvas) on every frame of the drag —
+   PdfView drives --pdf-scale. `zoom` rather than `transform` so the scale
+   reflows: slot heights, scroll height and text-layer geometry stay
+   consistent mid-drag. */
+.pdf-pages {
+  zoom: var(--pdf-scale, 1);
+}
+
 .pdf-page-slot {
   margin: 0 auto 1rem;
   width: fit-content;

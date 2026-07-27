@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Document, Page, pdfjs } from 'react-pdf'
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import 'react-pdf/dist/Page/TextLayer.css'
@@ -12,8 +12,14 @@ import { useTimelineStore } from '../../state/timelineStore'
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl
 
 /** Letter-ish aspect ratio used to size placeholders before a page has
- *  rendered once (then we remember its real height). */
+ *  rendered once (then we remember its real one). */
 const ESTIMATED_PAGE_RATIO = 1.3
+
+/** Breathing room kept between a page and the pane's edges. */
+const PAGE_GUTTER = 48
+
+/** How long the width has to hold still before pages re-render at it. */
+const RESIZE_SETTLE_MS = 150
 
 const NO_ANCHORS: Anchor[] = []
 
@@ -23,8 +29,11 @@ const NO_ANCHORS: Anchor[] = []
  * scroll position stays stable. Once a page's text layer renders, its anchors'
  * quotes are matched against it and painted; a quote that no longer matches
  * simply isn't painted — its entry still page-jumps here (spec §4 degrade).
+ *
+ * Memoized: a re-render of the view (an anchor edit, a jump) then only reaches
+ * the pages whose own props actually changed.
  */
-function LazyPage({
+const LazyPage = memo(function LazyPage({
   pageNumber,
   width,
   anchors,
@@ -37,7 +46,9 @@ function LazyPage({
 }) {
   const slotRef = useRef<HTMLDivElement | null>(null)
   const [visible, setVisible] = useState(false)
-  const [measuredHeight, setMeasuredHeight] = useState<number | null>(null)
+  // Stored as a *ratio*, not a height: the placeholder then tracks a width
+  // change instead of pinning the slot at a stale height until it re-renders.
+  const [measuredRatio, setMeasuredRatio] = useState<number | null>(null)
   // Read by the stable callbacks below. Painting must NOT go through state:
   // a state bump re-renders <Page>, and react-pdf then re-runs the text layer
   // render, whose success callback would bump state again — an infinite
@@ -72,11 +83,13 @@ function LazyPage({
   useEffect(() => () => clearRegionHighlights(`pdf:${pageNumber}`), [pageNumber])
 
   const handleRenderSuccess = useCallback(() => {
-    const height = slotRef.current?.querySelector('.react-pdf__Page')?.clientHeight
-    if (height) setMeasuredHeight(height)
+    const page = slotRef.current?.querySelector('.react-pdf__Page')
+    if (page?.clientWidth && page.clientHeight) {
+      setMeasuredRatio(page.clientHeight / page.clientWidth)
+    }
   }, [])
 
-  const placeholderHeight = measuredHeight ?? Math.round(width * ESTIMATED_PAGE_RATIO)
+  const placeholderHeight = Math.round(width * (measuredRatio ?? ESTIMATED_PAGE_RATIO))
   return (
     <div
       ref={(el) => {
@@ -96,12 +109,15 @@ function LazyPage({
       )}
     </div>
   )
-}
+})
 
 export default function PdfView({ data, documentId }: { data: Uint8Array; documentId: string }) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const pagesRef = useRef<HTMLDivElement>(null)
   const [numPages, setNumPages] = useState(0)
+  // The width pages are *rendered* at — see the ResizeObserver below.
   const [pageWidth, setPageWidth] = useState(0)
+  const pageWidthRef = useRef(0)
   const slotsRef = useRef(new Map<number, HTMLDivElement>())
 
   const anchors = useTimelineStore((s) => s.anchors)
@@ -128,14 +144,39 @@ export default function PdfView({ data, documentId }: { data: Uint8Array; docume
   // copy — the original stays usable across StrictMode remounts.
   const file = useMemo(() => ({ data: new Uint8Array(data) }), [data])
 
+  // Re-rendering a page at a new width blanks its canvas while pdf.js paints
+  // the replacement — doing that on every frame of a window drag is the
+  // flicker. So pages keep their rendered width during the drag and are merely
+  // CSS-scaled to the live one (blurry at worst, and only mid-drag); the real
+  // re-render happens once, when the width holds still.
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
+    let timer = 0
+    // The scale goes straight to the DOM rather than through state: a drag
+    // frame then costs one style write, not a re-render that re-diffs every
+    // page slot only for `memo` to bail out of each one.
+    const setScale = (scale: number) =>
+      pagesRef.current?.style.setProperty('--pdf-scale', String(scale))
+    const renderAt = (width: number) => {
+      pageWidthRef.current = width
+      setScale(1)
+      setPageWidth(width)
+    }
     const observer = new ResizeObserver(([entry]) => {
-      setPageWidth(Math.max(0, Math.floor(entry.contentRect.width) - 48))
+      const width = Math.max(0, Math.floor(entry.contentRect.width) - PAGE_GUTTER)
+      if (width <= 0) return
+      window.clearTimeout(timer)
+      // First measurement: nothing rendered yet, so there's nothing to flicker.
+      if (pageWidthRef.current === 0) return renderAt(width)
+      setScale(width / pageWidthRef.current)
+      timer = window.setTimeout(() => renderAt(width), RESIZE_SETTLE_MS)
     })
     observer.observe(container)
-    return () => observer.disconnect()
+    return () => {
+      observer.disconnect()
+      window.clearTimeout(timer)
+    }
   }, [])
 
   // Cross-navigation: entry click → jump to the anchor's page immediately,
@@ -162,23 +203,27 @@ export default function PdfView({ data, documentId }: { data: Uint8Array; docume
 
   return (
     <div ref={containerRef} className="pdf-view">
-      <Document
-        file={file}
-        onLoadSuccess={(pdf) => setNumPages(pdf.numPages)}
-        loading={<p className="pane-status">Loading PDF…</p>}
-        error={<p className="pane-status error">Failed to render PDF.</p>}
-      >
-        {pageWidth > 0 &&
-          Array.from({ length: numPages }, (_, i) => (
-            <LazyPage
-              key={i + 1}
-              pageNumber={i + 1}
-              width={pageWidth}
-              anchors={anchorsByPage.get(i + 1) ?? NO_ANCHORS}
-              registerSlot={registerSlot}
-            />
-          ))}
-      </Document>
+      {/* Scaled (in CSS) by --pdf-scale. Has to be an inner element: zooming
+          the observed container would feed back into the ResizeObserver. */}
+      <div ref={pagesRef} className="pdf-pages">
+        <Document
+          file={file}
+          onLoadSuccess={(pdf) => setNumPages(pdf.numPages)}
+          loading={<p className="pane-status">Loading PDF…</p>}
+          error={<p className="pane-status error">Failed to render PDF.</p>}
+        >
+          {pageWidth > 0 &&
+            Array.from({ length: numPages }, (_, i) => (
+              <LazyPage
+                key={i + 1}
+                pageNumber={i + 1}
+                width={pageWidth}
+                anchors={anchorsByPage.get(i + 1) ?? NO_ANCHORS}
+                registerSlot={registerSlot}
+              />
+            ))}
+        </Document>
+      </div>
     </div>
   )
 }
