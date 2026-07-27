@@ -68,18 +68,109 @@ body {
   font-size: 0.9rem;
 }
 
-.app-body {
+/* ---- Split layout ------------------------------------------------------ */
+
+/* Panes are sized by flex-grow from the layout store; see SplitView.tsx.
+   Dividers draw the seams between them, so panes carry no border of their
+   own. */
+
+.split {
   display: flex;
   flex: 1;
+  min-width: 0;
   min-height: 0;
+}
+
+.split-vertical {
+  flex-direction: column;
+}
+
+.split-pane {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Whatever a pane renders fills it — the wrapper owns the sizing. */
+.split-pane > * {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.split-divider {
+  flex: none;
+  position: relative;
+  background: var(--border);
+  /* Above pane content so the hit area below wins the pointer. */
+  z-index: 5;
+  transition: background 0.12s;
+}
+
+.split-horizontal > .split-divider {
+  width: 1px;
+  cursor: col-resize;
+}
+
+.split-vertical > .split-divider {
+  height: 1px;
+  cursor: row-resize;
+}
+
+/* A hairline is honest but ungrabbable — widen the target, not the look. */
+.split-divider::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+
+.split-horizontal > .split-divider::before {
+  left: -3px;
+  right: -3px;
+}
+
+.split-vertical > .split-divider::before {
+  top: -3px;
+  bottom: -3px;
+}
+
+.split-divider:hover,
+.split-divider:focus-visible,
+.split-divider.dragging {
+  background: rgba(122, 90, 245, 0.8);
+  outline: none;
+}
+
+.split-horizontal > .split-divider:hover,
+.split-horizontal > .split-divider:focus-visible,
+.split-horizontal > .split-divider.dragging {
+  box-shadow: 0 0 0 1px rgba(122, 90, 245, 0.8);
+}
+
+.split-vertical > .split-divider:hover,
+.split-vertical > .split-divider:focus-visible,
+.split-vertical > .split-divider.dragging {
+  box-shadow: 0 0 0 1px rgba(122, 90, 245, 0.8);
+}
+
+/* Set on <body> for the duration of a drag: no text selection anywhere, and
+   the resize cursor holds even when the pointer outruns the divider. */
+body.resizing {
+  user-select: none;
+}
+
+body.resizing-horizontal * {
+  cursor: col-resize;
+}
+
+body.resizing-vertical * {
+  cursor: row-resize;
 }
 
 /* ---- Sidebar ---------------------------------------------------------- */
 
 .sidebar {
-  width: 240px;
-  flex: none;
-  border-right: 1px solid var(--border);
   overflow-y: auto;
   padding: 0.75rem 0.5rem;
   display: flex;
@@ -188,11 +279,6 @@ body {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  border-right: 1px solid var(--border);
-}
-
-.pane:last-child {
-  border-right: none;
 }
 
 .pane-header {

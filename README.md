@@ -44,17 +44,18 @@ Keys are deliberately kept out of `agent.json` and the DB, so the data dir stays
 {
   "provider": "openai-compatible",
   "baseUrl": "https://openrouter.ai/api/v1",
-  "model": "google/gemini-3.1-flash-lite",
+  "model": "deepseek/deepseek-v4-flash",
   "embeddingProvider": "voyage",
   "embeddingModel": "voyage-3.5-lite"
 }
 ```
 
-Some endpoints worth knowing (prices per MTok, checked 2026-07-24 — for scale, the Opus tier is $5/$25):
+Some endpoints worth knowing (prices per MTok, checked 2026-07-26 — for scale, the Opus tier is $5/$25):
 
 | Endpoint | `baseUrl` | Example `model` | Cost | Key |
 |---|---|---|---|---|
-| OpenRouter *(default)* | `https://openrouter.ai/api/v1` | `google/gemini-3.1-flash-lite` | $0.25 / $1.50 | `OPENROUTER_API_KEY` |
+| OpenRouter *(default)* | `https://openrouter.ai/api/v1` | `deepseek/deepseek-v4-flash` | $0.14 / $0.28 | `OPENROUTER_API_KEY` |
+| OpenRouter, a tier up | ″ | `deepseek/deepseek-v4-pro` | $0.435 / $0.87 | ″ |
 | OpenRouter, cheapest useful | ″ | `openai/gpt-oss-120b` | $0.037 / $0.17 | ″ |
 | Groq | `https://api.groq.com/openai/v1` | *(open models, very fast)* | varies | `OPENAI_API_KEY` |
 | Ollama / LM Studio | `http://localhost:11434/v1` | `llama3.1:8b` | free, offline | *none needed* |

@@ -12,5 +12,8 @@
     "src/preload/**/*",
     "src/shared/**/*",
     "tests/**/*"
-  ]
+  ],
+  // Renderer-side tests belong to the web project — it's the one with the DOM
+  // lib and the renderer sources.
+  "exclude": ["tests/renderer/**/*"]
 }

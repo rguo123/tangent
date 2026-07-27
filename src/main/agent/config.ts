@@ -32,14 +32,15 @@ export const AGENT_CONFIG_FILE = 'agent.json'
 
 /**
  * OpenRouter by default: one key reaches hundreds of models, so trying a
- * cheaper or stronger one is a config edit. Model prices as of 2026-07-24 —
- * this one is ~20x cheaper than the Opus tier, and `openai/gpt-oss-120b`
- * ($0.037/$0.17 per MTok) is another ~7x below that if quality allows.
+ * cheaper or stronger one is a config edit. Model prices as of 2026-07-26 —
+ * DeepSeek V4 Flash is $0.14/$0.28 per MTok (~35x under the Opus tier) with a
+ * 1M context. `deepseek/deepseek-v4-pro` ($0.435/$0.87) is the same family a
+ * quality tier up; `openai/gpt-oss-120b` ($0.037/$0.17) is the floor.
  */
 export const DEFAULT_AGENT_CONFIG: AgentConfig = {
   provider: 'openai-compatible',
   baseUrl: 'https://openrouter.ai/api/v1',
-  model: 'google/gemini-3.1-flash-lite',
+  model: 'deepseek/deepseek-v4-flash',
   // OpenRouter serves chat, not embeddings — Phase 5 needs a separate vendor.
   embeddingProvider: 'voyage',
   embeddingBaseUrl: 'https://api.openai.com/v1',

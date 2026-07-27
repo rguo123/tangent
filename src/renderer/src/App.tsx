@@ -3,6 +3,7 @@ import Sidebar from './sidebar/Sidebar'
 import DocumentPane from './panes/DocumentPane/DocumentPane'
 import NotesPane from './panes/NotesPane/NotesPane'
 import DevStats from './DevStats'
+import SplitView, { type SplitPane } from './layout/SplitView'
 import { useAppStore } from './state/appStore'
 import { useTimelineStore } from './state/timelineStore'
 
@@ -35,6 +36,20 @@ export default function App() {
     void useTimelineStore.getState().load(activeThreadId)
   }, [activeThreadId])
 
+  // The shell is a split of whatever is open: dividers appear between the
+  // panes that exist, and the survivors keep their proportions when one is
+  // toggled off. Min sizes are the point below which a pane stops being
+  // usable — a PDF column narrower than this is unreadable, not compact.
+  const panes: SplitPane[] = [{ id: 'sidebar', minSize: 150, node: <Sidebar /> }]
+  if (documentPaneOpen) panes.push({ id: 'document', minSize: 280, node: <DocumentPane /> })
+  if (notesPaneOpen) panes.push({ id: 'notes', minSize: 260, node: <NotesPane /> })
+  if (!documentPaneOpen && !notesPaneOpen) {
+    panes.push({
+      id: 'empty',
+      node: <p className="pane-status all-closed">Both panes are closed.</p>,
+    })
+  }
+
   return (
     <div className="app-shell">
       <header className="app-header">
@@ -62,14 +77,7 @@ export default function App() {
           {error} <button onClick={clearError}>dismiss</button>
         </div>
       )}
-      <div className="app-body">
-        <Sidebar />
-        {documentPaneOpen && <DocumentPane />}
-        {notesPaneOpen && <NotesPane />}
-        {!documentPaneOpen && !notesPaneOpen && (
-          <p className="pane-status all-closed">Both panes are closed.</p>
-        )}
-      </div>
+      <SplitView className="app-body" panes={panes} />
       {showDevStats && <DevStats onClose={() => setShowDevStats(false)} />}
     </div>
   )
