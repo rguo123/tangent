@@ -1,6 +1,7 @@
 import { isUnansweredResponse, type Anchor, type Document, type Entry } from '@shared/entities'
 import type { Storage } from '../db/init'
 import { readDocumentText } from '../documents/text'
+import { truncate } from '../util'
 import type { ChatMessage } from './provider'
 
 /**
@@ -90,8 +91,4 @@ function questionTurn(question: Entry, anchor: Anchor | null): string {
   const { exact, pageNumber } = anchor.selector
   const where = pageNumber !== undefined ? ` (page ${pageNumber})` : ''
   return [`About this passage${where}:`, '', `> ${exact}`, '', question.body].join('\n')
-}
-
-function truncate(text: string, max: number): string {
-  return text.length <= max ? text : `${text.slice(0, max)}\n\n[...truncated]`
 }

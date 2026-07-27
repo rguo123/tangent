@@ -20,18 +20,25 @@ describe('migrations', () => {
   it('creates the full schema', () => {
     const { db } = testDb()
     const tables = (
-      db
-        .prepare(`SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name`)
-        .all() as { name: string }[]
+      db.prepare(`SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name`).all() as {
+        name: string
+      }[]
     ).map((r) => r.name)
     expect(tables).toEqual(EXPECTED_TABLES)
   })
 
   it('is idempotent', () => {
     const { db } = testDb()
+    const count = (): number =>
+      (db.prepare('SELECT COUNT(*) AS n FROM schema_migrations').get() as { n: number }).n
+
+    const applied = count()
+    expect(applied).toBeGreaterThan(0)
+
+    // Re-running applies nothing and re-creates nothing — the second call is
+    // what every launch after the first one does.
     expect(() => migrate(db)).not.toThrow()
-    const applied = db.prepare('SELECT COUNT(*) AS n FROM schema_migrations').get() as { n: number }
-    expect(applied.n).toBe(1)
+    expect(count()).toBe(applied)
   })
 
   it('enforces schema constraints on raw inserts', () => {

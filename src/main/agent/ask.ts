@@ -1,12 +1,8 @@
-import type {
-  AgentStatus,
-  AskRequest,
-  AskResult,
-  IpcEventChannel,
-  IpcEventPayload,
-} from '@shared/ipc'
+import type { AgentStatus, AskRequest, AskResult } from '@shared/ipc'
 import type { Storage } from '../db/init'
 import { createAskPair } from '../db/timeline'
+import type { RendererEmit } from '../ipc/emit'
+import { errorMessage } from '../util'
 import type { AgentConfig } from './config'
 import { buildAskContext } from './context'
 import type { LLMProvider } from './provider'
@@ -27,8 +23,6 @@ import type { LLMProvider } from './provider'
  * a relaunch.
  */
 
-export type AgentEmit = <C extends IpcEventChannel>(channel: C, payload: IpcEventPayload<C>) => void
-
 export interface AgentService {
   status(): AgentStatus
   ask(req: AskRequest): AskResult
@@ -41,7 +35,7 @@ export function createAgentService(
   storage: Storage,
   provider: LLMProvider,
   config: AgentConfig,
-  emit: AgentEmit,
+  emit: RendererEmit,
 ): AgentService {
   const { entries, anchors } = storage.repos
   const inFlight = new Map<string, AbortController>()
@@ -77,7 +71,10 @@ export function createAgentService(
       // Keep the partial answer: a truncated reply is more useful than a blank
       // one, and retry overwrites it either way.
       if (text) persist(responseEntryId, text)
-      emit('agent:end', { entryId: responseEntryId, error: message(err) })
+      emit('agent:end', {
+        entryId: responseEntryId,
+        error: errorMessage(err, 'The request failed.'),
+      })
     } finally {
       inFlight.delete(responseEntryId)
     }
@@ -124,9 +121,4 @@ export function createAgentService(
       inFlight.clear()
     },
   }
-}
-
-function message(err: unknown): string {
-  const text = err instanceof Error ? err.message : String(err)
-  return text || 'The request failed.'
 }

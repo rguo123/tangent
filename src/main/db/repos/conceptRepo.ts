@@ -66,8 +66,10 @@ export interface CreateConceptInput {
 
 export interface AddMentionInput {
   conceptId: string
-  entryId?: string
-  anchorId?: string
+  /** Nullable rather than optional, matching the columns — one of the two must
+   *  be set (CHECK-enforced), but callers that carry both slots pass both. */
+  entryId?: string | null
+  anchorId?: string | null
 }
 
 export function createConceptRepo(db: Database) {
@@ -87,6 +89,13 @@ export function createConceptRepo(db: Database) {
   const mentionsByConcept = db.prepare(
     'SELECT * FROM concept_mention WHERE concept_id = ? ORDER BY created_at, rowid',
   )
+  // `IS` rather than `=`: either source column may be NULL, and NULL = NULL
+  // isn't true in SQL.
+  const mentionBySource = db.prepare(
+    'SELECT * FROM concept_mention WHERE concept_id = ? AND entry_id IS ? AND anchor_id IS ?',
+  )
+  const deleteMentionStmt = db.prepare('DELETE FROM concept_mention WHERE id = ?')
+  const deleteConceptStmt = db.prepare('DELETE FROM concept WHERE id = ?')
   const markMerged = db.prepare(
     `UPDATE concept SET status = 'merged', merged_into_id = ?, updated_at = ? WHERE id = ?`,
   )
@@ -132,12 +141,43 @@ export function createConceptRepo(db: Database) {
 
     addMention(input: AddMentionInput): ConceptMention {
       const id = newId()
-      insertMention.run(id, input.conceptId, input.entryId ?? null, input.anchorId ?? null, nowIso())
+      insertMention.run(
+        id,
+        input.conceptId,
+        input.entryId ?? null,
+        input.anchorId ?? null,
+        nowIso(),
+      )
       return toMention(mentionById.get(id) as MentionRow)
     },
 
     mentionsFor(conceptId: string): ConceptMention[] {
       return (mentionsByConcept.all(conceptId) as MentionRow[]).map(toMention)
+    },
+
+    /** Provenance is a set, not a log: re-extracting an edited note that still
+     *  argues the same thing shouldn't stack identical rows. Extraction checks
+     *  here before writing a mention. */
+    findMention(
+      conceptId: string,
+      entryId: string | null,
+      anchorId: string | null,
+    ): ConceptMention | null {
+      const row = mentionBySource.get(conceptId, entryId, anchorId) as MentionRow | undefined
+      return row ? toMention(row) : null
+    },
+
+    /** Undo support (spec §7): the extraction chip reverses the transaction it
+     *  just committed. Only ever called on rows that same batch created, which
+     *  is what makes a hard delete safe here — and the flashcard_concept FK
+     *  turns "delete a concept a card already cites" into an error rather than
+     *  a dangling card. */
+    deleteMention(id: string): void {
+      deleteMentionStmt.run(id)
+    },
+
+    delete(id: string): void {
+      deleteConceptStmt.run(id)
     },
 
     /** Merge `id` into `intoId`: re-points flashcard links to the survivor and

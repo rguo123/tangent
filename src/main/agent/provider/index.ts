@@ -38,7 +38,13 @@ export function createProvider(
   // Recording every call would retain each request's assembled document
   // context for the life of the process — fine for a test, a leak in dev mode.
   const mock = needsMock
-    ? createMockProvider({ chunkDelayMs: MOCK_DEV_CHUNK_DELAY_MS, record: false })
+    ? createMockProvider({
+        chunkDelayMs: MOCK_DEV_CHUNK_DELAY_MS,
+        record: false,
+        // This mock is the app's only provider for the session, so a structured
+        // call has to answer with *something* — see StructuredRequest.offlineFallback.
+        offlineFallbacks: true,
+      })
     : null
 
   const chatUnavailable = missingKeyReason(config.provider, config.baseUrl, chatKey, 'chat')

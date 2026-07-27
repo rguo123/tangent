@@ -2,7 +2,8 @@ import { writeFileSync } from 'fs'
 import { join } from 'path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { IpcEventChannel, IpcEventPayload } from '@shared/ipc'
-import { createAgentService, type AgentEmit, type AgentService } from '../../src/main/agent/ask'
+import { createAgentService, type AgentService } from '../../src/main/agent/ask'
+import type { RendererEmit } from '../../src/main/ipc/emit'
 import { MOCK_AGENT_CONFIG } from '../../src/main/agent/config'
 import { createMockProvider, type MockProvider } from '../../src/main/agent/provider'
 import type { Storage } from '../../src/main/db/init'
@@ -17,7 +18,10 @@ function recorder() {
   const waiting = new Map<string, (error: string | null) => void>()
   const order: string[] = []
 
-  const emit: AgentEmit = <C extends IpcEventChannel>(channel: C, payload: IpcEventPayload<C>) => {
+  const emit: RendererEmit = <C extends IpcEventChannel>(
+    channel: C,
+    payload: IpcEventPayload<C>,
+  ) => {
     order.push(channel)
     if (channel === 'agent:start') {
       // nothing to accumulate — presence in `order` is the assertion

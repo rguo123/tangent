@@ -685,6 +685,76 @@ body.resizing-vertical * {
   margin-top: 0.25rem;
 }
 
+/* ---- Extraction chip --------------------------------------------------- */
+
+/* Bottom-left, out of the dev overlay's corner: a report, not a request. */
+.extraction-chip {
+  position: fixed;
+  left: 1rem;
+  bottom: 1rem;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  max-width: 24rem;
+  padding: 0.35rem 0.5rem 0.35rem 0.7rem;
+  font-size: 0.8rem;
+  border: 1px solid var(--border);
+  border-left: 3px solid rgba(122, 90, 245, 0.8);
+  border-radius: 6px;
+  background: Canvas;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
+  animation: chip-in 0.18s ease-out;
+}
+
+.extraction-chip.failed {
+  border-left-color: var(--error);
+  color: var(--error);
+}
+
+.extraction-chip-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.extraction-chip-action {
+  flex: none;
+  font: inherit;
+  font-size: 0.8rem;
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  opacity: 0.8;
+}
+
+.extraction-chip-action:hover {
+  opacity: 1;
+}
+
+.extraction-chip-close {
+  flex: none;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 0.7rem;
+  opacity: 0.4;
+  padding: 0 0.1rem;
+}
+
+.extraction-chip-close:hover {
+  opacity: 0.8;
+}
+
+@keyframes chip-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
 /* ---- Dev stats overlay ------------------------------------------------ */
 
 .dev-stats {

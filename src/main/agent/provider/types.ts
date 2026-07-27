@@ -40,6 +40,14 @@ export interface StructuredRequest<T> {
   /** Extraction and cardgen are high-volume background work — they run lower
    *  than the interactive chat path. */
   effort?: 'low' | 'medium' | 'high'
+  /**
+   * What this call should produce when there is no model at all — offline dev
+   * (`TANGENT_MOCK_LLM=1`), where a background pipeline that throws would take
+   * a whole feature offline with it. Only MockProvider reads it, and only in
+   * that mode: tests queue their responses explicitly and a missing one still
+   * fails loudly.
+   */
+  offlineFallback?: () => T
 }
 
 export interface LLMProvider {

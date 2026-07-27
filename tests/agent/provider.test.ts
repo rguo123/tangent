@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { DEFAULT_AGENT_CONFIG } from '../../src/main/agent/config'
+// The real comparator, so this asserts what dedup will actually see.
+import { cosine } from '../../src/main/agent/extraction'
 import { createMockProvider, createProvider, hashEmbedding } from '../../src/main/agent/provider'
 import type { ChatDelta } from '../../src/main/agent/provider'
 
@@ -52,6 +54,28 @@ describe('MockProvider', () => {
     await expect(
       provider.structured({ prompt: 'x', schema: z.object({}), schemaName: 'cards' }),
     ).rejects.toThrow(/no queued response for "cards"/)
+  })
+
+  it('takes the caller offline fallback only when the app asked it to', async () => {
+    const schema = z.object({ concepts: z.array(z.object({ canonicalText: z.string() })) })
+    const request = {
+      prompt: 'extract',
+      schema,
+      schemaName: 'concepts',
+      offlineFallback: () => ({ concepts: [{ canonicalText: 'from the note itself' }] }),
+    }
+
+    // Offline dev: a background pipeline gets a grounded stand-in rather than
+    // an error that would take the whole feature down with it.
+    const offline = createMockProvider({ offlineFallbacks: true })
+    expect((await offline.structured(request)).concepts[0].canonicalText).toBe(
+      'from the note itself',
+    )
+    // A queued response still wins, so tests stay in charge of what comes back.
+    offline.queueStructured({ concepts: [{ canonicalText: 'queued' }] })
+    expect((await offline.structured(request)).concepts[0].canonicalText).toBe('queued')
+
+    await expect(createMockProvider().structured(request)).rejects.toThrow(/no queued response/)
   })
 
   it('fails on demand, once — the retryable error path', async () => {
@@ -149,9 +173,3 @@ describe('createProvider', () => {
     await expect(provider.embed(['x'])).rejects.toThrow(/EMBEDDING_API_KEY/)
   })
 })
-
-function cosine(a: Float32Array, b: Float32Array): number {
-  let dot = 0
-  for (let i = 0; i < a.length; i++) dot += a[i] * b[i]
-  return dot // both vectors are unit length
-}

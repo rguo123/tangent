@@ -56,6 +56,10 @@ export interface Anchor {
   documentId: string
   selector: TextQuoteSelector
   createdAt: string
+  /** Extraction watermark (spec §5.1), for a highlight with no note. An anchor
+   *  is immutable, so unlike an entry it has no `updatedAt` to outrun: set
+   *  once, cleared only by an undo. */
+  extractedAt: string | null
 }
 
 export interface Entry {

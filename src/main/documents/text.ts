@@ -1,4 +1,5 @@
 import type { Storage } from '../db/init'
+import { truncate } from '../util'
 import { readDocumentContent } from './import'
 import { extractPdfText } from './pdfText'
 
@@ -50,10 +51,6 @@ async function extract(storage: Storage, documentId: string, maxChars: number): 
     return extractPdfText(new Uint8Array(content.data), maxChars)
   }
   return truncate(content.content, maxChars)
-}
-
-function truncate(text: string, max: number): string {
-  return text.length <= max ? text : `${text.slice(0, max)}\n\n[...truncated]`
 }
 
 /** Test hook — documents are immutable in the app, so nothing else needs this. */

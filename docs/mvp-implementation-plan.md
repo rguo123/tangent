@@ -227,6 +227,8 @@ Config: JSON file in the app-data dir (`provider`, `model`, `embeddingProvider`)
 - **Commit path:** agent proposes, app commits (spec §3) — extraction returns proposals; a single repo transaction writes concepts/mentions and stamps `extracted_at` on the consumed entries
 - **UX:** silent write + transient chip ("4 concepts added · undo") per spec §7; undo reverses the transaction
 
+*(As built, July 2026: three things the plan left open. **Activity detection lives in main**, not the renderer — main already sees every committed entry over IPC, so the finest granularity available is "a note was saved" and per-keystroke was never reachable; the renderer only reports *which thread is active*, since a switch is the one thing main can't see. **Mentions are a set, not a log** — re-extracting an edited note that still argues the same thing adds no row, so provenance answers "where did this come from" rather than "how many times was it re-read". And `StructuredRequest` gained an `offlineFallback`, read only by MockProvider in `TANGENT_MOCK_LLM=1`, so a background pipeline that has no model to call degrades to a grounded stand-in instead of taking the feature down offline.)*
+
 **Testable outcome:**
 - `npm test` → with `MockProvider`: watermark selects the right entries; near-duplicate embedding → mention not new concept; unpinned AI responses excluded; undo restores prior state
 - `npm run dev` (real provider) → take notes on a section, switch threads → chip appears; inspect `concept` / `concept_mention` via dev panel or sqlite CLI — concepts trace back to your actual notes/highlights, not un-engaged document text

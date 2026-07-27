@@ -19,6 +19,13 @@ export function testDb(): TestDb {
   return { db, repos: createRepos(db) }
 }
 
+/** `testDb` as a `Storage`, for the layers that take one but never touch the
+ *  documents dir — the agent pipelines read the DB and the provider, nothing
+ *  else. Use `tempStorage` when a real directory is needed. */
+export function testStorage(): Storage {
+  return { ...testDb(), documentsDir: '' }
+}
+
 /** Real on-disk storage, for anything that touches the documents dir (import,
  *  PDF text extraction) — an in-memory DB isn't enough there. Close the DB
  *  before removing the dir, which is what `cleanup` orders correctly. */

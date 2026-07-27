@@ -1,6 +1,7 @@
 import type { Database } from 'better-sqlite3'
 import { nowIso } from '../util'
 import { sql as initialSchema } from './001_initial_schema'
+import { sql as anchorWatermark } from './002_anchor_watermark'
 
 interface Migration {
   id: number
@@ -9,7 +10,10 @@ interface Migration {
 }
 
 /** Ordered, append-only. New migrations get the next id; applied ones never change. */
-const migrations: Migration[] = [{ id: 1, name: 'initial_schema', sql: initialSchema }]
+const migrations: Migration[] = [
+  { id: 1, name: 'initial_schema', sql: initialSchema },
+  { id: 2, name: 'anchor_watermark', sql: anchorWatermark },
+]
 
 /** Apply all pending migrations, each in its own transaction. Idempotent. */
 export function migrate(db: Database): void {

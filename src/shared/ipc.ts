@@ -77,6 +77,18 @@ export interface AgentStatus {
   unavailable: string | null
 }
 
+/** What one extraction run did. `batchId` is null when nothing was written —
+ *  which is most runs, since the trigger is a timer, not a change. */
+export interface ExtractionSummary {
+  threadId: string
+  /** The handle undo needs; null when there was nothing to commit. */
+  batchId: string | null
+  conceptsAdded: number
+  /** Existing concepts that gained a new source. A run that adds only mentions
+   *  found nothing new, but did learn where else the idea shows up. */
+  mentionsAdded: number
+}
+
 export interface DebugVersions {
   electron: string
   chrome: string
@@ -110,6 +122,15 @@ export interface IpcContract {
    *  The new text arrives over `agent:delta`, so there's nothing to return. */
   'entries:retryAsk': { request: { entryId: string }; response: void }
   'agent:status': { request: void; response: AgentStatus }
+  /** Which thread the user is looking at. Main extracts the one they left —
+   *  the renderer is the only side that knows a switch happened. */
+  'extraction:setActiveThread': { request: { threadId: string | null }; response: void }
+  /** Extract now, and wait for the verdict (the dev "extract now" button).
+   *  Background runs report over `extraction:committed` instead. */
+  'extraction:run': { request: { threadId: string }; response: ExtractionSummary }
+  /** Reverse a committed batch — the chip's undo. Throws once the batch has
+   *  aged out of main's undo window. */
+  'extraction:undo': { request: { batchId: string }; response: void }
   'debug:versions': { request: void; response: DebugVersions }
   'debug:dbStats': { request: void; response: DbStats }
 }
@@ -133,6 +154,12 @@ export interface IpcEvents {
   /** The stream finished. `error` is null on success; on failure the entry
    *  keeps whatever partial body arrived and the ask is retryable. */
   'agent:end': { entryId: string; error: string | null }
+  /** A background extraction wrote something. The renderer's cue for the
+   *  transient chip (spec §7) — the write itself is silent. */
+  'extraction:committed': ExtractionSummary
+  /** A triggered run failed. Nothing was written and the entries stay due, so
+   *  this is information rather than an error to act on. */
+  'extraction:failed': { threadId: string; error: string }
 }
 
 export type IpcEventChannel = keyof IpcEvents

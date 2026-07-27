@@ -60,11 +60,13 @@ Some endpoints worth knowing (prices per MTok, checked 2026-07-26 — for scale,
 | Groq | `https://api.groq.com/openai/v1` | *(open models, very fast)* | varies | `OPENAI_API_KEY` |
 | Ollama / LM Studio | `http://localhost:11434/v1` | `llama3.1:8b` | free, offline | *none needed* |
 
-**Embeddings are a separate vendor** — chat aggregators like OpenRouter don't serve them. Voyage is the default (`VOYAGE_API_KEY`); setting `"embeddingProvider": "openai-compatible"` points them at `embeddingBaseUrl` instead (OpenAI's `text-embedding-3-small`, or Ollama's `nomic-embed-text` for a free local option) using `EMBEDDING_API_KEY`. Nothing needs embeddings until Phase 5.
+**Embeddings are a separate vendor** — chat aggregators like OpenRouter don't serve them. Voyage is the default (`VOYAGE_API_KEY`); setting `"embeddingProvider": "openai-compatible"` points them at `embeddingBaseUrl` instead (OpenAI's `text-embedding-3-small`, or Ollama's `nomic-embed-text` for a free local option) using `EMBEDDING_API_KEY`. Extraction is what needs them: without an embeddings key, asking still works and extraction reports the missing variable on its chip.
 
 Missing keys don't block launch: the app starts, the composer names the variable to set, and the ask fails on that entry rather than at startup. A `localhost` endpoint is never warned about, since local servers authenticate nothing.
 
 **Ask AI.** Asking writes the question Entry *and* its `ai_response` Entry before any network call, then streams the reply into the second one over `agent:delta` / `agent:end` (the push half of the IPC contract, in `src/shared/ipc.ts`). An `ai_response` with an empty body and no live stream is the failed state — retryable, and it survives a relaunch without a status column. A lost network call is never a lost question.
+
+**Extraction.** Concepts are pulled from what you *engaged with* — your notes, your questions, answers you pinned, passages you highlighted — and never from the document itself. It runs on leaving a thread or ~90s of quiet in one, writes silently, and says so afterwards on a chip you can undo. The `Extract` button in the header runs it now instead of waiting for a trigger. Under `TANGENT_MOCK_LLM=1` the pipeline still runs end to end, proposing one concept per input, so the dedup / chip / undo path is exercisable offline.
 
 ## Native module notes (better-sqlite3)
 

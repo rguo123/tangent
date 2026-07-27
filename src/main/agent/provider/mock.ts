@@ -27,6 +27,18 @@ export interface MockProviderOptions {
    *  what tests want; off when the mock is the live provider for a dev
    *  session, where each retained request pins its whole document context. */
   record?: boolean
+  /** Let a `structured()` caller's `offlineFallback` stand in for a queued
+   *  response. Off by default: a test that forgot to queue should say so, not
+   *  quietly take the app's offline path. */
+  offlineFallbacks?: boolean
+}
+
+/** What a structured call asked for, minus the schema — enough to assert on the
+ *  prompt a caller assembled, and on which caller it was, without fighting the
+ *  generic. */
+export interface RecordedStructuredCall {
+  prompt: string
+  schemaName: string
 }
 
 export interface MockProvider extends LLMProvider {
@@ -37,13 +49,15 @@ export interface MockProvider extends LLMProvider {
    *  retryable failed state is built for. */
   failNext(message: string): void
   readonly chatCalls: ChatRequest[]
+  readonly structuredCalls: RecordedStructuredCall[]
   readonly embedCalls: string[][]
 }
 
 export function createMockProvider(options: MockProviderOptions = {}): MockProvider {
-  const { chunkDelayMs = 0, record = true } = options
+  const { chunkDelayMs = 0, record = true, offlineFallbacks = false } = options
   const structuredQueue: unknown[] = []
   const chatCalls: ChatRequest[] = []
+  const structuredCalls: RecordedStructuredCall[] = []
   const embedCalls: string[][] = []
   let pendingFailure: string | null = null
 
@@ -60,6 +74,7 @@ export function createMockProvider(options: MockProviderOptions = {}): MockProvi
     embeddingModel: MOCK_EMBEDDING_MODEL,
     unavailable: null,
     chatCalls,
+    structuredCalls,
     embedCalls,
 
     queueStructured(value) {
@@ -81,8 +96,10 @@ export function createMockProvider(options: MockProviderOptions = {}): MockProvi
     },
 
     async structured<T>(req: StructuredRequest<T>): Promise<T> {
+      if (record) structuredCalls.push({ prompt: req.prompt, schemaName: req.schemaName })
       takeFailure()
       if (structuredQueue.length === 0) {
+        if (offlineFallbacks && req.offlineFallback) return req.schema.parse(req.offlineFallback())
         throw new Error(
           `MockProvider has no queued response for "${req.schemaName}" — call queueStructured() first.`,
         )

@@ -3,8 +3,10 @@ import Sidebar from './sidebar/Sidebar'
 import DocumentPane from './panes/DocumentPane/DocumentPane'
 import NotesPane from './panes/NotesPane/NotesPane'
 import DevStats from './DevStats'
+import ExtractionChip from './ExtractionChip'
 import SplitView, { type SplitPane } from './layout/SplitView'
 import { useAppStore } from './state/appStore'
+import { useExtractionStore } from './state/extractionStore'
 import { useTimelineStore } from './state/timelineStore'
 
 export default function App() {
@@ -16,24 +18,32 @@ export default function App() {
   const toggleNotesPane = useAppStore((s) => s.toggleNotesPane)
   const error = useAppStore((s) => s.error)
   const clearError = useAppStore((s) => s.clearError)
+  const runExtraction = useExtractionStore((s) => s.runNow)
   const [showDevStats, setShowDevStats] = useState(false)
 
   useEffect(() => {
     refreshThreads()
   }, [refreshThreads])
 
-  // Streaming answers arrive as main-process pushes, not as responses to a
-  // call — subscribe once for the app's lifetime.
+  // Streaming answers and extraction results arrive as main-process pushes,
+  // not as responses to a call — subscribe once for the app's lifetime.
   useEffect(() => {
-    const unsubscribe = useTimelineStore.getState().subscribeAgent()
+    const unsubscribeAgent = useTimelineStore.getState().subscribeAgent()
+    const unsubscribeExtraction = useExtractionStore.getState().subscribe()
     void useTimelineStore.getState().loadAgentStatus()
-    return unsubscribe
+    return () => {
+      unsubscribeAgent()
+      unsubscribeExtraction()
+    }
   }, [])
 
   // Timeline loads at app level (not in NotesPane) — the document pane needs
   // the thread's anchors for highlights even when the notes pane is closed.
+  // Main hears about the switch too: leaving a thread is what triggers
+  // extraction on the one you left (spec §5.1).
   useEffect(() => {
     void useTimelineStore.getState().load(activeThreadId)
+    void window.tangent.extraction.setActiveThread(activeThreadId)
   }, [activeThreadId])
 
   // The shell is a split of whatever is open: dividers appear between the
@@ -67,6 +77,16 @@ export default function App() {
           >
             Notes
           </button>
+          {/* Dev affordance: extraction is otherwise trigger-driven, and
+              waiting out a 90s idle timer is no way to test it. */}
+          <button
+            className="pane-toggle"
+            disabled={!activeThreadId}
+            title="Extract concepts from this thread now"
+            onClick={() => activeThreadId && void runExtraction(activeThreadId)}
+          >
+            Extract
+          </button>
           <button className="pane-toggle" onClick={() => setShowDevStats((v) => !v)}>
             DB
           </button>
@@ -78,6 +98,7 @@ export default function App() {
         </div>
       )}
       <SplitView className="app-body" panes={panes} />
+      <ExtractionChip />
       {showDevStats && <DevStats onClose={() => setShowDevStats(false)} />}
     </div>
   )

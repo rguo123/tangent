@@ -1,3 +1,20 @@
+import type { MockProvider } from '../../src/main/agent/provider'
+
+/**
+ * Queue one extraction proposal: concept N cites input N, which is what every
+ * case that isn't specifically about source resolution wants. Tests that need
+ * odd refs (an invented one, two concepts on one input) call `queueStructured`
+ * directly.
+ */
+export function queueConcepts(provider: MockProvider, ...canonicalTexts: string[]): void {
+  provider.queueStructured({
+    concepts: canonicalTexts.map((canonicalText, i) => ({
+      canonicalText,
+      sourceRefs: [`i${i + 1}`],
+    })),
+  })
+}
+
 /**
  * A one-page, uncompressed PDF containing `text` — small enough to build by
  * hand, real enough for pdf.js to parse. Keeps the text-extraction tests free

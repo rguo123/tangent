@@ -2,6 +2,7 @@ import { join } from 'path'
 import { app, BrowserWindow } from 'electron'
 import { createAgentService } from './agent/ask'
 import { loadAgentConfig } from './agent/config'
+import { createExtractionService } from './agent/extractionService'
 import { createProvider } from './agent/provider'
 import { initStorage } from './db/init'
 import { loadEnvFiles } from './env'
@@ -10,6 +11,7 @@ import { registerDebugIpc } from './ipc/debug'
 import { registerDocumentIpc } from './ipc/documents'
 import { emitToRenderers } from './ipc/emit'
 import { registerEntryIpc } from './ipc/entries'
+import { registerExtractionIpc } from './ipc/extraction'
 import { registerThreadIpc } from './ipc/threads'
 
 function createWindow(): void {
@@ -46,20 +48,26 @@ app.whenReady().then(() => {
   const agentConfig = loadAgentConfig(dataDir)
   const provider = createProvider(agentConfig)
   const agent = createAgentService(storage, provider, agentConfig, emitToRenderers)
+  const extraction = createExtractionService(storage, provider, emitToRenderers)
 
   registerDebugIpc(storage.db)
   registerDocumentIpc(storage)
   registerThreadIpc(storage)
-  registerEntryIpc(storage)
-  registerAgentIpc(agent)
+  registerEntryIpc(storage, extraction.touch)
+  registerAgentIpc(agent, extraction.touch)
+  registerExtractionIpc(extraction)
   createWindow()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
 
-  // Don't leave a stream writing into a DB that's about to close.
-  app.on('before-quit', () => agent.abortAll())
+  // Don't leave a stream writing into a DB that's about to close, or a timer
+  // waiting to start one.
+  app.on('before-quit', () => {
+    agent.abortAll()
+    extraction.dispose()
+  })
 })
 
 app.on('window-all-closed', () => {

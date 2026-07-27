@@ -61,6 +61,16 @@ const api = {
     onEnd: (listener: (payload: IpcEventPayload<'agent:end'>) => void) =>
       subscribe('agent:end', listener),
   },
+  extraction: {
+    setActiveThread: (threadId: string | null) =>
+      invoke('extraction:setActiveThread', { threadId }),
+    run: (threadId: string) => invoke('extraction:run', { threadId }),
+    undo: (batchId: string) => invoke('extraction:undo', { batchId }),
+    onCommitted: (listener: (payload: IpcEventPayload<'extraction:committed'>) => void) =>
+      subscribe('extraction:committed', listener),
+    onFailed: (listener: (payload: IpcEventPayload<'extraction:failed'>) => void) =>
+      subscribe('extraction:failed', listener),
+  },
   debug: {
     versions: () => invoke('debug:versions'),
     dbStats: () => invoke('debug:dbStats'),

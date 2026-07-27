@@ -102,6 +102,13 @@ export function createEntryRepo(db: Database) {
     markExtracted(ids: string[], at: string = nowIso()): void {
       stampAll(ids, at)
     },
+
+    /** Watermark writes one entry at a time, `null` included — undoing an
+     *  extraction has to put back the timestamp each entry had before it, which
+     *  for a first extraction is no timestamp at all. */
+    setExtractedAt(id: string, at: string | null): void {
+      stamp.run(at, id)
+    },
   }
 }
 
