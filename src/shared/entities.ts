@@ -25,7 +25,23 @@ export interface Document {
   sourceType: SourceType
   /** File path (pdf) or content blob (markdown/generated); null for chat_transcript. */
   contentRef: string | null
+  /** Where a web clip came from; null for everything imported from a file. Also
+   *  marks the documents that own an assets dir at `documents/<id>/`. */
+  sourceUrl: string | null
   createdAt: string
+}
+
+/**
+ * A clipped web article, as opposed to one imported from a file.
+ *
+ * Web clips are stored as `markdown` — after extraction that is what they are,
+ * and it earns them the whole render / anchor / agent-context path for free —
+ * so `sourceUrl` is the only thing that distinguishes them. Asking here rather
+ * than re-deriving `sourceUrl != null` at each call site keeps that encoding in
+ * one place, and gives provenance affordances somewhere to hang.
+ */
+export function isWebDocument(document: Document): boolean {
+  return document.sourceUrl !== null
 }
 
 export interface Thread {

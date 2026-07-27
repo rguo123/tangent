@@ -46,6 +46,39 @@ describe('renderMarkdown', () => {
     expect(html).toContain('rel="noreferrer noopener"')
   })
 
+  it('keeps a same-document fragment as an in-app link, for documents', () => {
+    const html = renderMarkdown('[jump](#leader-election)', { document: true })
+    expect(html).toContain('href="#leader-election"')
+    // No target: this one is handled in the document view, not the browser.
+    expect(html).not.toContain('target="_blank"')
+  })
+
+  it('allows a tangent:// image but never a tangent:// link', () => {
+    const image = renderMarkdown('![Diagram](tangent://assets/doc-id/abc.png)', { document: true })
+    expect(image).toContain('<img src="tangent://assets/doc-id/abc.png"')
+
+    const link = renderMarkdown('[nav](tangent://assets/doc-id/abc.png)', { document: true })
+    expect(link).not.toContain('tangent://')
+    expect(link).toContain('nav')
+  })
+
+  it('grants neither capability to entry bodies, which is the default', () => {
+    // Notes and model output go through the same renderer. Neither may mint a
+    // fragment link nor reach a document's local assets.
+    const fragment = renderMarkdown('[jump](#leader-election)')
+    expect(fragment).not.toContain('href=')
+    expect(fragment).toContain('jump')
+
+    const asset = renderMarkdown('![x](tangent://assets/doc-id/abc.png)')
+    expect(asset).not.toContain('tangent://')
+    expect(asset).not.toContain('<img')
+  })
+
+  it('does not leak a document render into the next entry render', () => {
+    renderMarkdown('[a](#x)', { document: true })
+    expect(renderMarkdown('[b](#y)')).not.toContain('href=')
+  })
+
   it('renders partial markdown mid-stream without dropping text', () => {
     // Every prefix of a streaming answer gets parsed; none may lose content.
     const answer = '## Result\n\nThe **key** point is:\n\n```ts\nconst x = 1\n```\n'

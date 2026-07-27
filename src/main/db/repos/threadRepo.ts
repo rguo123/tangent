@@ -32,6 +32,7 @@ type ThreadWithDocumentRow = ThreadRow & {
   doc_title: string
   doc_source_type: SourceType
   doc_content_ref: string | null
+  doc_source_url: string | null
   doc_created_at: string
 }
 
@@ -48,7 +49,9 @@ export function createThreadRepo(db: Database) {
      VALUES (?, ?, ?, ?, ?, 'active', ?)`,
   )
   const byId = db.prepare('SELECT * FROM thread WHERE id = ?')
-  const byField = db.prepare('SELECT * FROM thread WHERE field_id = ? ORDER BY created_at DESC, rowid DESC')
+  const byField = db.prepare(
+    'SELECT * FROM thread WHERE field_id = ? ORDER BY created_at DESC, rowid DESC',
+  )
   const byFieldAndStatus = db.prepare(
     'SELECT * FROM thread WHERE field_id = ? AND status = ? ORDER BY created_at DESC, rowid DESC',
   )
@@ -57,7 +60,7 @@ export function createThreadRepo(db: Database) {
     `SELECT t.*,
             d.id AS doc_id, d.field_id AS doc_field_id, d.title AS doc_title,
             d.source_type AS doc_source_type, d.content_ref AS doc_content_ref,
-            d.created_at AS doc_created_at
+            d.source_url AS doc_source_url, d.created_at AS doc_created_at
      FROM thread t JOIN document d ON d.id = t.document_id
      WHERE t.field_id = ?
      ORDER BY t.created_at DESC, t.rowid DESC`,
@@ -99,6 +102,7 @@ export function createThreadRepo(db: Database) {
           title: r.doc_title,
           source_type: r.doc_source_type,
           content_ref: r.doc_content_ref,
+          source_url: r.doc_source_url,
           created_at: r.doc_created_at,
         }),
       }))

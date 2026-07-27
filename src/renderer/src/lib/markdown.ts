@@ -10,13 +10,27 @@ import { Marked } from 'marked'
  *
  *  - raw HTML in the source is escaped, never passed through — a model that
  *    emits `<script>` or `<img onerror=…>` gets text, not a tag;
- *  - links and images keep only http(s)/mailto hrefs, so `javascript:` and
+ *  - links keep only http(s)/mailto hrefs and same-document fragments, and
+ *    images only http(s) or the app's own asset scheme, so `javascript:` and
  *    `file:` degrade to plain text.
  *
  * That covers what markdown can smuggle without pulling in a DOM sanitizer.
  */
 
 const SAFE_HREF = /^(?:https?:|mailto:)/i
+const SAFE_IMG_SRC = /^(?:https?:)/i
+
+/**
+ * Two capabilities only an imported document has any use for, off by default.
+ *
+ * `#…` is how a clipped article points at its own headings (see
+ * `documents/webClip.ts`), and `tangent://assets/…` is where its downloaded
+ * images live. Entry bodies — notes, and whatever a model wrote — are rendered
+ * by the same function, and have no business minting either. Granting them per
+ * surface keeps that a line of code rather than a paragraph of reasoning.
+ */
+const DOCUMENT_HREF = /^(?:https?:|mailto:|#)/i
+const DOCUMENT_IMG_SRC = /^(?:https?:|tangent:)/i
 
 function escapeHtml(text: string): string {
   return text
@@ -29,6 +43,12 @@ function escapeHtml(text: string): string {
 
 const marked = new Marked({ gfm: true })
 
+/** Set for the duration of one `renderMarkdown` call. Safe as module state
+ *  because `marked.parse` is synchronous — the same reason the renderer
+ *  callbacks below can read it at all. */
+let safeHref = SAFE_HREF
+let safeImgSrc = SAFE_IMG_SRC
+
 marked.use({
   renderer: {
     html({ text }) {
@@ -37,15 +57,18 @@ marked.use({
 
     link({ href, title, tokens }) {
       const text = this.parser.parseInline(tokens)
-      if (!SAFE_HREF.test(href)) return text
+      if (!safeHref.test(href)) return text
       const titleAttr = title ? ` title="${escapeHtml(title)}"` : ''
-      // Electron's window-open handler sends these to the OS browser; without
-      // the target they would navigate the app itself away.
-      return `<a href="${escapeHtml(href)}"${titleAttr} target="_blank" rel="noreferrer noopener">${text}</a>`
+      // A fragment stays inside this document, so it gets no target — the
+      // document view intercepts it and scrolls. Everything else is elsewhere:
+      // Electron's window-open handler sends those to the OS browser, and
+      // without the target they would navigate the app itself away.
+      const target = href.startsWith('#') ? '' : ' target="_blank" rel="noreferrer noopener"'
+      return `<a href="${escapeHtml(href)}"${titleAttr}${target}>${text}</a>`
     },
 
     image({ href, title, text }) {
-      if (!SAFE_HREF.test(href)) return escapeHtml(text)
+      if (!safeImgSrc.test(href)) return escapeHtml(text)
       const titleAttr = title ? ` title="${escapeHtml(title)}"` : ''
       return `<img src="${escapeHtml(href)}" alt="${escapeHtml(text)}"${titleAttr} />`
     },
@@ -57,7 +80,17 @@ marked.use({
  * typed into a textarea, where a newline is meant literally, and it preserves
  * the `white-space: pre-wrap` rendering it replaced. Off for source documents,
  * where hard-wrapped paragraphs are just paragraphs.
+ *
+ * `document` widens what a link or image may point at, for the one surface that
+ * renders imported content. See the two pattern pairs above.
  */
-export function renderMarkdown(source: string, { breaks = true } = {}): string {
-  return marked.parse(source, { async: false, breaks })
+export function renderMarkdown(source: string, { breaks = true, document = false } = {}): string {
+  safeHref = document ? DOCUMENT_HREF : SAFE_HREF
+  safeImgSrc = document ? DOCUMENT_IMG_SRC : SAFE_IMG_SRC
+  try {
+    return marked.parse(source, { async: false, breaks })
+  } finally {
+    safeHref = SAFE_HREF
+    safeImgSrc = SAFE_IMG_SRC
+  }
 }

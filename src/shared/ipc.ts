@@ -104,6 +104,9 @@ export interface DbStats {
 export interface IpcContract {
   /** Opens a native file picker in main; null when the user cancels. */
   'documents:import': { request: void; response: ImportResult | null }
+  /** Clip an article from the web. Takes seconds — a real browser loads the
+   *  page — so the renderer shows a pending state rather than blocking. */
+  'documents:importUrl': { request: { url: string }; response: ImportResult }
   'documents:content': { request: { documentId: string }; response: DocumentContent }
   /** All threads (active and archived) for the default Field, newest first. */
   'threads:list': { request: void; response: ThreadListItem[] }

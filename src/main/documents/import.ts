@@ -3,6 +3,9 @@ import { basename, extname, join } from 'path'
 import type { ImportResult, DocumentContent } from '@shared/ipc'
 import type { Storage } from '../db/init'
 import { newId } from '../db/util'
+import { assetDir } from './assetPaths'
+import { applyAssetUrls, downloadImages, type FetchBytes } from './webAssets'
+import type { FetchPage } from './webFetch'
 
 /**
  * Document import + content reading (spec §2, Documents).
@@ -70,6 +73,75 @@ export function importDocument(storage: Storage, filePath: string): ImportResult
   } catch (err) {
     // Don't leave an orphaned copy behind if the row insert failed.
     if (sourceType === 'pdf') rmSync(join(storage.documentsDir, contentRef), { force: true })
+    throw err
+  }
+}
+
+export interface WebImportDeps {
+  fetchPage: FetchPage
+  fetchBytes: FetchBytes
+}
+
+/**
+ * Import a web article. Same shape as the file path above — content inlined,
+ * Document and first Thread committed together — with two differences: the
+ * markdown is extracted rather than read, and the images it references are
+ * pulled onto disk under `documents/<id>/` first.
+ *
+ * Both halves of the network are injected, so this is drivable from tests
+ * without Electron or a socket, for the same reason the file picker lives in
+ * the IPC layer rather than here.
+ */
+export async function importUrlDocument(
+  storage: Storage,
+  url: string,
+  deps: WebImportDeps,
+): Promise<ImportResult> {
+  const page = await deps.fetchPage(url)
+
+  // Loaded on first use, not at startup: linkedom and turndown cost ~50ms to
+  // evaluate, and most launches never clip anything. This path already waits
+  // seconds on the network, so the load is invisible here.
+  const { clipArticle } = await import('./webClip')
+  const article = clipArticle(page.html, page.finalUrl)
+
+  const field = storage.repos.fields.getDefault()
+  const id = newId()
+
+  // Assets land before the row exists, so a failed insert has something to
+  // clean up rather than something to leak — the same order the PDF path uses.
+  const assets = await downloadImages(article.images, {
+    documentId: id,
+    documentsDir: storage.documentsDir,
+    pageUrl: page.finalUrl,
+    fetchBytes: deps.fetchBytes,
+  })
+  if (assets.skipped > 0) {
+    console.warn(
+      `${url}: ${assets.skipped} image(s) skipped (unreachable, oversized, or past the cap)`,
+    )
+  }
+  const markdown = applyAssetUrls(article.markdown, assets.replacements)
+
+  try {
+    return storage.db.transaction((): ImportResult => {
+      const document = storage.repos.documents.create({
+        id,
+        fieldId: field.id,
+        title: article.title,
+        sourceType: 'markdown',
+        contentRef: markdown,
+        sourceUrl: page.finalUrl,
+      })
+      const thread = storage.repos.threads.create({
+        fieldId: field.id,
+        documentId: document.id,
+        title: article.title,
+      })
+      return { document, thread }
+    })()
+  } catch (err) {
+    rmSync(assetDir(storage.documentsDir, id), { recursive: true, force: true })
     throw err
   }
 }

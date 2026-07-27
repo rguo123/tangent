@@ -8,6 +8,7 @@ export interface DocumentRow {
   title: string
   source_type: SourceType
   content_ref: string | null
+  source_url: string | null
   created_at: string
 }
 
@@ -18,6 +19,7 @@ export function toDocument(r: DocumentRow): Document {
     title: r.title,
     sourceType: r.source_type,
     contentRef: r.content_ref,
+    sourceUrl: r.source_url,
     createdAt: r.created_at,
   }
 }
@@ -31,12 +33,14 @@ export interface CreateDocumentInput {
   sourceType: SourceType
   /** Required for pdf/markdown/generated; must be null for chat_transcript (CHECK-enforced). */
   contentRef: string | null
+  /** Set only by web import — the URL the content was clipped from. */
+  sourceUrl?: string | null
 }
 
 export function createDocumentRepo(db: Database) {
   const insert = db.prepare(
-    `INSERT INTO document (id, field_id, title, source_type, content_ref, created_at)
-     VALUES (?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO document (id, field_id, title, source_type, content_ref, source_url, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
   )
   const byId = db.prepare('SELECT * FROM document WHERE id = ?')
   const byField = db.prepare('SELECT * FROM document WHERE field_id = ? ORDER BY created_at, rowid')
@@ -49,7 +53,15 @@ export function createDocumentRepo(db: Database) {
   return {
     create(input: CreateDocumentInput): Document {
       const id = input.id ?? newId()
-      insert.run(id, input.fieldId, input.title, input.sourceType, input.contentRef, nowIso())
+      insert.run(
+        id,
+        input.fieldId,
+        input.title,
+        input.sourceType,
+        input.contentRef,
+        input.sourceUrl ?? null,
+        nowIso(),
+      )
       return get(id)!
     },
 

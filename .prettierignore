@@ -1,0 +1,4 @@
+out
+node_modules
+# Captured third-party pages, kept byte-for-byte as fetched.
+tests/fixtures

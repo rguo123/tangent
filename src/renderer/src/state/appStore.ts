@@ -13,9 +13,13 @@ interface AppState {
   documentPaneOpen: boolean
   notesPaneOpen: boolean
   error: string | null
+  /** A web clip is in flight. Unlike the file picker, this one takes seconds —
+   *  a real browser has to load the page — so the UI has to say so. */
+  importingUrl: boolean
 
   refreshThreads: () => Promise<void>
   importDocument: () => Promise<void>
+  importUrl: (url: string) => Promise<boolean>
   selectThread: (threadId: string) => void
   setThreadStatus: (threadId: string, status: ThreadStatus) => Promise<void>
   toggleDocumentPane: () => void
@@ -32,6 +36,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   documentPaneOpen: true,
   notesPaneOpen: true,
   error: null,
+  importingUrl: false,
 
   refreshThreads: async () => {
     try {
@@ -49,6 +54,24 @@ export const useAppStore = create<AppState>((set, get) => ({
       set({ activeThreadId: result.thread.id })
     } catch (err) {
       reportError(err)
+    }
+  },
+
+  /** Resolves true when the clip landed, so the caller can clear its input
+   *  only on success and leave a failed URL there to retry or correct. */
+  importUrl: async (url) => {
+    if (get().importingUrl) return false
+    set({ importingUrl: true, error: null })
+    try {
+      const result = await window.tangent.documents.importUrl(url)
+      await get().refreshThreads()
+      set({ activeThreadId: result.thread.id })
+      return true
+    } catch (err) {
+      reportError(err)
+      return false
+    } finally {
+      set({ importingUrl: false })
     }
   },
 

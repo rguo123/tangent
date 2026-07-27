@@ -68,6 +68,31 @@ Missing keys don't block launch: the app starts, the composer names the variable
 
 **Extraction.** Concepts are pulled from what you *engaged with* — your notes, your questions, answers you pinned, passages you highlighted — and never from the document itself. It runs on leaving a thread or ~90s of quiet in one, writes silently, and says so afterwards on a chip you can undo. The `Extract` button in the header runs it now instead of waiting for a trigger. Under `TANGENT_MOCK_LLM=1` the pipeline still runs end to end, proposing one concept per input, so the dedup / chip / undo path is exercisable offline.
 
+## Web import
+
+Paste an article URL into the sidebar and it becomes a Document like any other —
+extracted to markdown, images pulled onto disk, nav and ads gone. Design notes
+and threat model: [docs/web-import-plan.md](docs/web-import-plan.md).
+
+The page is loaded in a **hidden, sandboxed `BrowserWindow`** rather than
+fetched, because for a lot of the web nothing less works. Measured over twenty
+representative URLs, a plain fetch produced a usable article for 11 of them; a
+real Chromium managed 16, with no regressions. The gap was mostly anti-bot
+challenges (Medium, Stack Overflow, Reddit) rather than single-page apps. The
+clip session is **in-memory**, so clips carry no cookies and leave none behind.
+
+Extraction is `@mozilla/readability` + `turndown` over a `linkedom` DOM, and is
+a pure module (`documents/webClip.ts`) — network access is injected, so the
+whole contract is exercised from fixtures with no socket.
+
+Images are downloaded into `documents/<id>/` and served over a `tangent://`
+scheme registered on the **default session only**, which is what keeps a clipped
+page from reading another document's assets. The renderer's CSP is never
+widened to remote images.
+
+Links are sorted by where they go: an intra-article link scrolls the pane, and
+everything else opens in the OS browser.
+
 ## Native module notes (better-sqlite3)
 
 `better-sqlite3` v13 ships a **Node-API** build, so the same compiled binary loads under both Electron's bundled Node and the system Node — verified in this repo against Electron 43 (Node 24) and system Node 22. That means:

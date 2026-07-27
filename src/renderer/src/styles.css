@@ -192,6 +192,51 @@ body.resizing-vertical * {
   background: var(--muted);
 }
 
+.url-import {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.url-input {
+  font: inherit;
+  font-size: 0.85rem;
+  min-width: 0;
+  flex: 1;
+  padding: 0.35rem 0.45rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: none;
+  color: inherit;
+}
+
+.url-input.invalid {
+  border-color: var(--error, #c0392b);
+}
+
+.url-input:disabled {
+  opacity: 0.5;
+}
+
+.url-submit {
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.url-submit:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.url-submit:not(:disabled):hover {
+  background: var(--muted);
+}
+
 .sidebar-empty {
   font-size: 0.85rem;
   opacity: 0.6;

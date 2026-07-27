@@ -50,7 +50,24 @@ async function extract(storage: Storage, documentId: string, maxChars: number): 
     // pdf.js rejects a Buffer outright — it wants a plain Uint8Array view.
     return extractPdfText(new Uint8Array(content.data), maxChars)
   }
-  return truncate(content.content, maxChars)
+  // Truncate first: web clips make multi-hundred-KB markdown routine, and
+  // stripping before bounding would scan and copy the whole document to keep
+  // the first `maxChars` of it. Stripping only ever shortens, so the bound
+  // still holds.
+  return stripImages(truncate(content.content, maxChars))
+}
+
+/**
+ * Replace image syntax with its alt text before a document reaches a model.
+ *
+ * An image URL is tokens a model can do nothing with; the alt text is the part
+ * that carried meaning. Web clips make this worth doing rather than merely
+ * tidy — their images are `tangent://assets/<uuid>/<64 hex chars>.png`, around
+ * a hundred characters of content-addressed noise apiece, in a budget that is
+ * already truncating the article.
+ */
+function stripImages(markdown: string): string {
+  return markdown.replace(/!\[([^\]]*)\]\([^)\s]*\)/g, '$1')
 }
 
 /** Test hook — documents are immutable in the app, so nothing else needs this. */

@@ -5,6 +5,7 @@ import { loadAgentConfig } from './agent/config'
 import { createExtractionService } from './agent/extractionService'
 import { createProvider } from './agent/provider'
 import { initStorage } from './db/init'
+import { registerAssetProtocol, registerAssetScheme } from './documents/assetProtocol'
 import { loadEnvFiles } from './env'
 import { registerAgentIpc } from './ipc/agent'
 import { registerDebugIpc } from './ipc/debug'
@@ -14,10 +15,19 @@ import { registerEntryIpc } from './ipc/entries'
 import { registerExtractionIpc } from './ipc/extraction'
 import { registerThreadIpc } from './ipc/threads'
 
+// Must happen before app-ready: privileged schemes are fixed at startup.
+registerAssetScheme()
+
 /** Hand a link to the OS browser, if it's the kind of link that has one. */
 function openExternally(url: string): void {
   if (/^https?:/i.test(url)) void shell.openExternal(url)
 }
+
+/** The app's own windows. Hidden windows opened for other purposes — the web
+ *  clipper's, say — are Electron windows too, and lifecycle questions like
+ *  "is any UI open?" mean these ones. Tracked positively so a new kind of
+ *  background window doesn't have to remember to exclude itself. */
+const appWindows = new Set<BrowserWindow>()
 
 function createWindow(): void {
   const win = new BrowserWindow({
@@ -44,6 +54,9 @@ function createWindow(): void {
     openExternally(url)
   })
 
+  appWindows.add(win)
+  win.on('closed', () => appWindows.delete(win))
+
   if (!app.isPackaged && process.env['ELECTRON_RENDERER_URL']) {
     win.loadURL(process.env['ELECTRON_RENDERER_URL'])
   } else {
@@ -55,6 +68,11 @@ app.whenReady().then(() => {
   // Env override keeps automated runs / scratch profiles out of the real DB.
   const dataDir = process.env.TANGENT_DATA_DIR ?? app.getPath('userData')
   const storage = initStorage(dataDir)
+
+  // Default session only — clipped pages run in their own partition and so
+  // have no handler for this scheme, which is what keeps one document's
+  // images unreadable from another document's page.
+  registerAssetProtocol(storage.documentsDir)
 
   // API keys, before anything that might want one. The data dir comes first
   // because that's the per-install file a settings UI would eventually write
@@ -77,7 +95,7 @@ app.whenReady().then(() => {
   createWindow()
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    if (appWindows.size === 0) createWindow()
   })
 
   // Don't leave a stream writing into a DB that's about to close, or a timer

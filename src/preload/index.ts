@@ -34,6 +34,7 @@ function subscribe<C extends IpcEventChannel>(
 const api = {
   documents: {
     import: () => invoke('documents:import'),
+    importUrl: (url: string) => invoke('documents:importUrl', { url }),
     content: (documentId: string) => invoke('documents:content', { documentId }),
   },
   threads: {
