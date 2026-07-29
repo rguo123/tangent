@@ -37,7 +37,7 @@ export function createAgentService(
   config: AgentConfig,
   emit: RendererEmit,
 ): AgentService {
-  const { entries, anchors } = storage.repos
+  const { entries } = storage.repos
   const inFlight = new Map<string, AbortController>()
 
   /** Drives one answer to completion. Never rejects — failures are reported
@@ -56,8 +56,7 @@ export function createAgentService(
       const question = response.parentEntryId ? entries.getById(response.parentEntryId) : null
       if (!question) throw new Error('This answer has no question to respond to.')
 
-      const anchor = question.anchorId ? anchors.getById(question.anchorId) : null
-      const context = await buildAskContext(storage, question, anchor)
+      const context = await buildAskContext(storage, question)
 
       for await (const delta of provider.chat({ ...context, signal: controller.signal })) {
         if (controller.signal.aborted) break

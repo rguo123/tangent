@@ -1,10 +1,11 @@
-import { mkdtempSync, rmSync } from 'fs'
+import { mkdtempSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { openDatabase } from '../../src/main/db/connection'
 import { initStorage, type Storage } from '../../src/main/db/init'
 import { migrate } from '../../src/main/db/migrations'
 import { createRepos, type Repos } from '../../src/main/db/repos'
+import { importDocument } from '../../src/main/documents/import'
 import type { Database } from 'better-sqlite3'
 
 export interface TestDb {
@@ -40,6 +41,20 @@ export function tempStorage(): { storage: Storage; dataDir: string; cleanup: () 
       rmSync(dataDir, { recursive: true, force: true })
     },
   }
+}
+
+/**
+ * A markdown document imported through the real import path, for tests that
+ * need a document with readable text on disk.
+ *
+ * Pair with `clearDocumentTextCache()` in `beforeEach`: `readDocumentText`
+ * memoizes per process, so without it one test file's extraction leaks into
+ * the next and the failure looks like a bug in the reader.
+ */
+export function seedMarkdownDocument(storage: Storage, dataDir: string, body: string) {
+  const source = join(dataDir, 'paper.md')
+  writeFileSync(source, body)
+  return importDocument(storage, source)
 }
 
 /** field → concept → one draft recall card, for flashcard/review tests. */

@@ -14,7 +14,12 @@ import { extractPdfText } from './pdfText'
 /** Documents are immutable after import, so text extracted once stays valid
  *  for the life of the process. The *promise* is cached, not the result:
  *  two questions asked while the first extraction is still running should
- *  join it rather than each parse the PDF again. */
+ *  join it rather than each parse the PDF again.
+ *
+ *  Keyed by budget as well as document, because the budget bounds the
+ *  extraction: a 40k-char read of a book is a *prefix* of an 80k-char one, so
+ *  keying on the id alone would serve the short answer to the long question
+ *  and silently drop half the source. */
 const cache = new Map<string, Promise<string>>()
 
 /**
@@ -28,14 +33,15 @@ export function readDocumentText(
   documentId: string,
   maxChars: number,
 ): Promise<string> {
-  const cached = cache.get(documentId)
+  const key = `${documentId}:${maxChars}`
+  const cached = cache.get(key)
   if (cached) return cached
 
   const pending = extract(storage, documentId, maxChars).catch((err) => {
     console.warn(`Could not read text from document ${documentId}: ${String(err)}`)
     return ''
   })
-  cache.set(documentId, pending)
+  cache.set(key, pending)
   return pending
 }
 

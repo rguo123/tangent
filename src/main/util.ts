@@ -16,6 +16,18 @@ export function truncate(text: string, max: number, marker = DEFAULT_TRUNCATION)
 }
 
 /**
+ * A passage as a Markdown blockquote, for the prompts that quote the reader's
+ * source back at the model.
+ *
+ * Every line gets the marker, not just the first: an un-prefixed continuation
+ * line ends the quote, and the rest of the passage then reads as part of the
+ * surrounding instructions.
+ */
+export function blockquote(text: string): string {
+  return `> ${text.replace(/\n/g, '\n> ')}`
+}
+
+/**
  * An error as a sentence a person can act on. Both places this is used put the
  * result in front of the user — on a failed entry, or on the extraction chip —
  * so an empty message has to become something rather than nothing.

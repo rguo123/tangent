@@ -2,7 +2,7 @@ import { z } from 'zod'
 import type { Entry } from '@shared/entities'
 import type { ExtractionPlan, ExtractionSource, PlannedConcept } from '../db/extraction'
 import type { Storage } from '../db/init'
-import { truncate } from '../util'
+import { blockquote, truncate } from '../util'
 import type { LLMProvider } from './provider'
 
 /**
@@ -185,7 +185,7 @@ function offlineConcept(input: ExtractionInput): { canonicalText: string; source
 function renderInputs(inputs: ExtractionInput[]): string {
   const blocks = inputs.map((input) => {
     const lines = [`## ${input.ref} — ${INPUT_LABEL[input.kind]}`]
-    if (input.quote) lines.push(`> ${input.quote.replace(/\n/g, '\n> ')}`)
+    if (input.quote) lines.push(blockquote(input.quote))
     if (input.body) lines.push(input.body)
     return lines.join('\n')
   })
