@@ -1,5 +1,11 @@
 import type { Database } from 'better-sqlite3'
-import type { CardLifecycle, CardType, Flashcard, FsrsScheduling, FsrsState } from '@shared/entities'
+import type {
+  CardLifecycle,
+  CardType,
+  Flashcard,
+  FsrsScheduling,
+  FsrsState,
+} from '@shared/entities'
 import { newId, nowIso, schedulingFrom } from '../util'
 
 interface FlashcardRow {
@@ -15,6 +21,7 @@ interface FlashcardRow {
   due_at: string | null
   last_reviewed_at: string | null
   state: FsrsState | null
+  learning_steps: number
   created_at: string
   updated_at: string
 }
@@ -36,7 +43,9 @@ export function createFlashcardRepo(db: Database) {
     'INSERT INTO flashcard_concept (flashcard_id, concept_id) VALUES (?, ?)',
   )
   const byId = db.prepare('SELECT * FROM flashcard WHERE id = ?')
-  const byField = db.prepare('SELECT * FROM flashcard WHERE field_id = ? ORDER BY created_at, rowid')
+  const byField = db.prepare(
+    'SELECT * FROM flashcard WHERE field_id = ? ORDER BY created_at, rowid',
+  )
   const byFieldAndLifecycle = db.prepare(
     'SELECT * FROM flashcard WHERE field_id = ? AND lifecycle = ? ORDER BY created_at, rowid',
   )
@@ -44,6 +53,15 @@ export function createFlashcardRepo(db: Database) {
     `SELECT * FROM flashcard
      WHERE field_id = ? AND lifecycle = 'active' AND due_at <= ?
      ORDER BY due_at, rowid`,
+  )
+  const idsByConcept = db.prepare(
+    `SELECT f.id FROM flashcard f
+     JOIN flashcard_concept fc ON fc.flashcard_id = f.id
+     WHERE fc.concept_id = ?
+     ORDER BY f.created_at, f.rowid`,
+  )
+  const countByLifecycleStmt = db.prepare(
+    'SELECT COUNT(*) AS n FROM flashcard WHERE field_id = ? AND lifecycle = ?',
   )
   const conceptIdsFor = db.prepare(
     'SELECT concept_id FROM flashcard_concept WHERE flashcard_id = ? ORDER BY concept_id',
@@ -54,16 +72,21 @@ export function createFlashcardRepo(db: Database) {
      WHERE f.field_id = ?
      ORDER BY fc.concept_id`,
   )
-  // MAX keeps an existing user_edited flag when the third param is 0.
   const updateContentStmt = db.prepare(
-    'UPDATE flashcard SET front = ?, back = ?, user_edited = MAX(user_edited, ?), updated_at = ? WHERE id = ?',
+    'UPDATE flashcard SET front = ?, back = ?, user_edited = 1, updated_at = ? WHERE id = ?',
+  )
+  // The regeneration guard, in SQL rather than in a caller: a user-edited card
+  // matches no row, so a machine rewrite silently leaves it alone.
+  const replaceContentStmt = db.prepare(
+    'UPDATE flashcard SET front = ?, back = ?, updated_at = ? WHERE id = ? AND user_edited = 0',
   )
   const updateLifecycle = db.prepare(
     'UPDATE flashcard SET lifecycle = ?, updated_at = ? WHERE id = ?',
   )
   const updateSchedulingStmt = db.prepare(
     `UPDATE flashcard
-     SET stability = ?, difficulty = ?, due_at = ?, last_reviewed_at = ?, state = ?, updated_at = ?
+     SET stability = ?, difficulty = ?, due_at = ?, last_reviewed_at = ?, state = ?,
+         learning_steps = ?, updated_at = ?
      WHERE id = ?`,
   )
   const deleteLinks = db.prepare('DELETE FROM flashcard_concept WHERE flashcard_id = ?')
@@ -87,7 +110,14 @@ export function createFlashcardRepo(db: Database) {
       cardType: r.card_type,
       lifecycle: r.lifecycle,
       userEdited: r.user_edited !== 0,
-      scheduling: schedulingFrom(r.stability, r.difficulty, r.due_at, r.last_reviewed_at, r.state),
+      scheduling: schedulingFrom({
+        stability: r.stability,
+        difficulty: r.difficulty,
+        dueAt: r.due_at,
+        lastReviewedAt: r.last_reviewed_at,
+        state: r.state,
+        learningSteps: r.learning_steps,
+      }),
       createdAt: r.created_at,
       updatedAt: r.updated_at,
     }
@@ -131,17 +161,29 @@ export function createFlashcardRepo(db: Database) {
       return mapAll(dueByField.all(fieldId, now) as FlashcardRow[], fieldId)
     },
 
+    /** Every card citing a concept — what a merge or a regeneration pass walks.
+     *  Loaded one at a time rather than through `mapAll`: the answer is a card
+     *  or two, and `mapAll`'s batched join reads the whole Field's links. */
+    listByConcept(conceptId: string): Flashcard[] {
+      return (idsByConcept.all(conceptId) as { id: string }[]).map((r) => get(r.id)!)
+    },
+
+    /** How big the deck is, without materializing it. */
+    countByLifecycle(fieldId: string, lifecycle: CardLifecycle): number {
+      return (countByLifecycleStmt.get(fieldId, lifecycle) as { n: number }).n
+    },
+
     /** A user edit to front/back — marks the card user_edited, permanently
      *  shielding it from regeneration (spec §2). */
     updateContent(id: string, front: string, back: string): void {
-      updateContentStmt.run(front, back, 1, nowIso(), id)
+      updateContentStmt.run(front, back, nowIso(), id)
     },
 
-    /** A machine rewrite (regeneration) — leaves user_edited untouched, so
-     *  regenerating a pristine card doesn't fake a user edit. Callers must
-     *  still skip user-edited cards per spec; the flag survives either way. */
-    replaceContent(id: string, front: string, back: string): void {
-      updateContentStmt.run(front, back, 0, nowIso(), id)
+    /** A machine rewrite (regeneration). Skips user-edited cards outright —
+     *  the spec's "regeneration never clobbers a user edit" rule is enforced
+     *  here rather than trusted to every caller. Returns whether it landed. */
+    replaceContent(id: string, front: string, back: string): boolean {
+      return replaceContentStmt.run(front, back, nowIso(), id).changes > 0
     },
 
     setLifecycle(id: string, lifecycle: CardLifecycle): void {
@@ -157,6 +199,7 @@ export function createFlashcardRepo(db: Database) {
         s?.dueAt ?? null,
         s?.lastReviewedAt ?? null,
         s?.state ?? null,
+        s?.learningSteps ?? 0,
         nowIso(),
         id,
       )

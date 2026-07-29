@@ -135,6 +135,10 @@ export interface FsrsScheduling {
   dueAt: string
   lastReviewedAt: string | null
   state: FsrsState
+  /** Index into the scheduler's short-term (re)learning steps. Load-bearing:
+   *  it is what tells the next review whether the card advances a step or
+   *  graduates, so it has to survive a relaunch (migration 004). */
+  learningSteps: number
 }
 
 export interface Flashcard {

@@ -1,8 +1,14 @@
 import type { ExtractionSummary } from '@shared/ipc'
-import { commitExtraction, undoExtraction, type ExtractionBatch } from '../db/extraction'
+import {
+  commitCards,
+  commitExtraction,
+  undoExtraction,
+  type ExtractionBatch,
+} from '../db/extraction'
 import type { Storage } from '../db/init'
 import type { RendererEmit } from '../ipc/emit'
 import { errorMessage } from '../util'
+import { planCards } from './cardgen'
 import { planExtraction } from './extraction'
 import type { LLMProvider } from './provider'
 
@@ -67,7 +73,7 @@ export function createExtractionService(
     const plan = await planExtraction(storage, provider, threadId)
     // Nothing engaged since last time. The common case for a timer that fires
     // while you're reading rather than writing — one query, then stop.
-    if (!plan) return { threadId, batchId: null, conceptsAdded: 0, mentionsAdded: 0 }
+    if (!plan) return { threadId, batchId: null, conceptsAdded: 0, mentionsAdded: 0, cardsAdded: 0 }
 
     const batch = commitExtraction(storage.db, storage.repos, plan)
     const summary: ExtractionSummary = {
@@ -75,6 +81,7 @@ export function createExtractionService(
       batchId: batch.id,
       conceptsAdded: batch.createdConceptIds.length,
       mentionsAdded: batch.createdMentionIds.length,
+      cardsAdded: await generateCards(batch, plan.fieldId),
     }
 
     // A run that consumed entries but wrote nothing new has nothing to offer
@@ -85,6 +92,28 @@ export function createExtractionService(
     remember(batch)
     emit('extraction:committed', summary)
     return summary
+  }
+
+  /**
+   * Draft cards for the concepts this batch created (spec §5.2) — only the new
+   * ones, so a re-read that merely adds a mention never rewrites a card.
+   *
+   * The extraction is already committed by the time this runs, and that's the
+   * point: cardgen is a second model call, and a failure in it costs the cards
+   * and nothing else. The concepts stay, the watermarks stay stamped, and the
+   * chip still reports what was learned.
+   */
+  async function generateCards(batch: ExtractionBatch, fieldId: string): Promise<number> {
+    if (batch.createdConceptIds.length === 0) return 0
+    try {
+      const drafts = await planCards(storage, provider, batch.createdConceptIds)
+      batch.createdFlashcardIds = commitCards(storage.db, storage.repos, fieldId, drafts)
+      if (batch.createdFlashcardIds.length > 0) emit('cards:changed', { reason: 'generated' })
+      return batch.createdFlashcardIds.length
+    } catch (err) {
+      console.warn(`Card generation failed for batch ${batch.id}: ${String(err)}`)
+      return 0
+    }
   }
 
   function remember(batch: ExtractionBatch): void {
@@ -140,6 +169,9 @@ export function createExtractionService(
       if (!batch) throw new Error('That extraction can no longer be undone.')
       undoExtraction(storage.db, storage.repos, batch)
       batches.delete(batchId)
+      // The batch's drafts went with it, so anyone showing the cull queue is
+      // now showing cards that no longer exist.
+      if (batch.createdFlashcardIds.length > 0) emit('cards:changed', { reason: 'undone' })
     },
 
     dispose() {

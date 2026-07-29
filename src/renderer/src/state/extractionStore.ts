@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { ExtractionSummary } from '@shared/ipc'
+import { plural } from '../lib/plural'
 import { reportError } from './appStore'
 
 /**
@@ -17,6 +18,9 @@ export interface ExtractionNotice {
   batchId: string | null
   text: string
   failed: boolean
+  /** Drafts waiting in the Artifacts pane because of this run — the chip is
+   *  where the user finds out there is a cull pass to do. */
+  cardsAdded: number
 }
 
 interface ExtractionState {
@@ -38,7 +42,7 @@ export const useExtractionStore = create<ExtractionState>((set, get) => ({
       set((s) => ({ notice: noticeFor(summary, s.notice) }))
     })
     const offFailed = window.tangent.extraction.onFailed(({ error }) => {
-      set({ notice: { batchId: null, text: error, failed: true } })
+      set({ notice: { batchId: null, text: error, failed: true, cardsAdded: 0 } })
     })
     return () => {
       offCommitted()
@@ -51,7 +55,7 @@ export const useExtractionStore = create<ExtractionState>((set, get) => ({
       const summary = await window.tangent.extraction.run(threadId)
       set((s) => ({ notice: noticeFor(summary, s.notice) }))
     } catch (err) {
-      set({ notice: { batchId: null, text: String(err), failed: true } })
+      set({ notice: { batchId: null, text: String(err), failed: true, cardsAdded: 0 } })
     }
   },
 
@@ -60,7 +64,9 @@ export const useExtractionStore = create<ExtractionState>((set, get) => ({
     if (!notice?.batchId) return
     try {
       await window.tangent.extraction.undo(notice.batchId)
-      set({ notice: { batchId: null, text: 'Extraction undone', failed: false } })
+      // Undo takes the batch's draft cards with it, which the cards store hears
+      // about over `cards:changed` — main is the one that knows what went.
+      set({ notice: { batchId: null, text: 'Extraction undone', failed: false, cardsAdded: 0 } })
     } catch (err) {
       reportError(err)
     }
@@ -75,13 +81,18 @@ export const useExtractionStore = create<ExtractionState>((set, get) => ({
  *  the timer keys on notice identity. */
 function noticeFor(summary: ExtractionSummary, current: ExtractionNotice | null): ExtractionNotice {
   if (current && summary.batchId !== null && current.batchId === summary.batchId) return current
-  return { batchId: summary.batchId, text: describe(summary), failed: false }
+  return {
+    batchId: summary.batchId,
+    text: describe(summary),
+    failed: false,
+    cardsAdded: summary.cardsAdded,
+  }
 }
 
-function describe({ conceptsAdded, mentionsAdded }: ExtractionSummary): string {
+function describe({ conceptsAdded, mentionsAdded, cardsAdded }: ExtractionSummary): string {
   const parts: string[] = []
-  if (conceptsAdded > 0)
-    parts.push(`${conceptsAdded} concept${conceptsAdded === 1 ? '' : 's'} added`)
-  if (mentionsAdded > 0) parts.push(`${mentionsAdded} mention${mentionsAdded === 1 ? '' : 's'}`)
+  if (conceptsAdded > 0) parts.push(`${plural(conceptsAdded, 'concept')} added`)
+  if (mentionsAdded > 0) parts.push(plural(mentionsAdded, 'mention'))
+  if (cardsAdded > 0) parts.push(plural(cardsAdded, 'card'))
   return parts.length > 0 ? parts.join(' · ') : 'No new concepts'
 }

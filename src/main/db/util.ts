@@ -10,16 +10,31 @@ export function nowIso(): string {
   return new Date().toISOString()
 }
 
-/** Rebuild FsrsScheduling from its five columns. `state` is the null sentinel
- *  for "never scheduled"; the schema CHECK keeps the columns coherent, so the
- *  non-null assertions here are backed by the DB. */
-export function schedulingFrom(
-  stability: number | null,
-  difficulty: number | null,
-  dueAt: string | null,
-  lastReviewedAt: string | null,
-  state: FsrsState | null,
-): FsrsScheduling | null {
-  if (state === null) return null
-  return { stability: stability!, difficulty: difficulty!, dueAt: dueAt!, lastReviewedAt, state }
+/** The scheduling columns as they come off a row — `flashcard`'s, or the
+ *  `prev_*` copy a review_log row carries for undo. */
+export interface SchedulingColumns {
+  stability: number | null
+  difficulty: number | null
+  dueAt: string | null
+  lastReviewedAt: string | null
+  state: FsrsState | null
+  learningSteps: number | null
+}
+
+/** Rebuild FsrsScheduling from its columns. `state` is the null sentinel for
+ *  "never scheduled"; the schema CHECK keeps the rest coherent with it, so the
+ *  non-null assertions here are backed by the DB. `learning_steps` arrived a
+ *  migration later than the others and defaults to 0 — a card mid-way through
+ *  its learning steps when the app was upgraded restarts them, which is the
+ *  cheapest possible one-time cost. */
+export function schedulingFrom(columns: SchedulingColumns): FsrsScheduling | null {
+  if (columns.state === null) return null
+  return {
+    stability: columns.stability!,
+    difficulty: columns.difficulty!,
+    dueAt: columns.dueAt!,
+    lastReviewedAt: columns.lastReviewedAt,
+    state: columns.state,
+    learningSteps: columns.learningSteps ?? 0,
+  }
 }

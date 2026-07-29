@@ -68,6 +68,10 @@ Missing keys don't block launch: the app starts, the composer names the variable
 
 **Extraction.** Concepts are pulled from what you *engaged with* — your notes, your questions, answers you pinned, passages you highlighted — and never from the document itself. It runs on leaving a thread or ~90s of quiet in one, writes silently, and says so afterwards on a chip you can undo. The `Extract` button in the header runs it now instead of waiting for a trigger. Under `TANGENT_MOCK_LLM=1` the pipeline still runs end to end, proposing one concept per input, so the dedup / chip / undo path is exercisable offline.
 
+**Flashcards.** Every concept extraction *creates* gets one draft recall card, written from the concept and the notes and passages behind it — a re-read that only adds a mention never rewrites a card. Drafts land in the **Cards** pane, where the cull pass is keyboard-first (`a` accept, `e` edit, `d` discard) and review is one key too (space to reveal, `1`–`4` to grade, `s` to suspend, `u` to undo the last grade). Editing a card marks it user-edited, which shields it from regeneration for good — enforced in SQL, not in a caller.
+
+Cards belong to the extraction batch that produced them, so the chip's undo takes them with it; once you've accepted one, that undo is refused rather than half-applied. Scheduling is [`ts-fsrs`](https://github.com/open-spaced-repetition/ts-fsrs) — a library, not an agent — and every grade appends a `review_log` row carrying the pre-review state, which is the entire mechanism behind undo. The log is append-only: undo flags a row, never deletes it.
+
 ## Web import
 
 Paste an article URL into the sidebar and it becomes a Document like any other —

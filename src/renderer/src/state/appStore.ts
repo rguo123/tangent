@@ -12,6 +12,9 @@ interface AppState {
   activeThreadId: string | null
   documentPaneOpen: boolean
   notesPaneOpen: boolean
+  /** Closed by default: cards are what you do *after* a reading session, and
+   *  an empty queue taking a third of the window is worse than a click. */
+  artifactsPaneOpen: boolean
   error: string | null
   /** A web clip is in flight. Unlike the file picker, this one takes seconds —
    *  a real browser has to load the page — so the UI has to say so. */
@@ -24,9 +27,11 @@ interface AppState {
   setThreadStatus: (threadId: string, status: ThreadStatus) => Promise<void>
   toggleDocumentPane: () => void
   toggleNotesPane: () => void
+  toggleArtifactsPane: () => void
   /** Cross-navigation targets a pane; make sure it's visible first. */
   openDocumentPane: () => void
   openNotesPane: () => void
+  openArtifactsPane: () => void
   clearError: () => void
 }
 
@@ -35,6 +40,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   activeThreadId: null,
   documentPaneOpen: true,
   notesPaneOpen: true,
+  artifactsPaneOpen: false,
   error: null,
   importingUrl: false,
 
@@ -92,8 +98,10 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   toggleDocumentPane: () => set((s) => ({ documentPaneOpen: !s.documentPaneOpen })),
   toggleNotesPane: () => set((s) => ({ notesPaneOpen: !s.notesPaneOpen })),
+  toggleArtifactsPane: () => set((s) => ({ artifactsPaneOpen: !s.artifactsPaneOpen })),
   openDocumentPane: () => set({ documentPaneOpen: true }),
   openNotesPane: () => set({ notesPaneOpen: true }),
+  openArtifactsPane: () => set({ artifactsPaneOpen: true }),
   clearError: () => set({ error: null }),
 }))
 

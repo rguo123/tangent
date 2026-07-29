@@ -8,6 +8,7 @@ const SCHEDULING: FsrsScheduling = {
   dueAt: '2026-01-02T00:00:00.000Z',
   lastReviewedAt: null,
   state: 0,
+  learningSteps: 1,
 }
 
 describe('flashcardRepo', () => {
@@ -24,7 +25,7 @@ describe('flashcardRepo', () => {
     const { repos } = testDb()
     const { card } = seedCard(repos)
 
-    repos.flashcards.replaceContent(card.id, 'regen front', 'regen back')
+    expect(repos.flashcards.replaceContent(card.id, 'regen front', 'regen back')).toBe(true)
     let current = repos.flashcards.getById(card.id)
     expect(current?.front).toBe('regen front')
     expect(current?.userEdited).toBe(false)
@@ -33,9 +34,29 @@ describe('flashcardRepo', () => {
     current = repos.flashcards.getById(card.id)
     expect(current?.userEdited).toBe(true)
 
-    // a later machine rewrite must not clear the user's flag
-    repos.flashcards.replaceContent(card.id, 'regen again', 'regen again')
-    expect(repos.flashcards.getById(card.id)?.userEdited).toBe(true)
+    // Regeneration is refused outright once the user has edited the card
+    // (spec §2) — enforced here rather than trusted to the caller.
+    expect(repos.flashcards.replaceContent(card.id, 'regen again', 'regen again')).toBe(false)
+    current = repos.flashcards.getById(card.id)
+    expect(current?.front).toBe('my front')
+    expect(current?.userEdited).toBe(true)
+  })
+
+  it('lists the cards citing a concept, which is what a merge re-points', () => {
+    const { repos } = testDb()
+    const { field, concept, card } = seedCard(repos)
+    const survivor = repos.concepts.create({ fieldId: field.id, canonicalText: 'survivor' })
+
+    expect(repos.flashcards.listByConcept(concept.id).map((c) => c.id)).toEqual([card.id])
+
+    // Merging moves the link without touching card content (spec §2).
+    repos.concepts.merge(concept.id, survivor.id)
+
+    expect(repos.flashcards.listByConcept(concept.id)).toEqual([])
+    expect(repos.flashcards.listByConcept(survivor.id).map((c) => c.id)).toEqual([card.id])
+    const merged = repos.flashcards.getById(card.id)
+    expect(merged?.front).toBe('f')
+    expect(merged?.conceptIds).toEqual([survivor.id])
   })
 
   it('lifecycle transitions and scheduling round-trip, including clearing', () => {

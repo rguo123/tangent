@@ -29,6 +29,10 @@ export const DEFAULT_PANE_WEIGHTS: Record<PaneId, number> = {
   sidebar: 0.16,
   document: 0.46,
   notes: 0.38,
+  // The other three are the default layout and read as percentages of it.
+  // Artifacts opens on top of them, taking its share proportionally — which is
+  // the whole reason weights beat pixels.
+  artifacts: 0.3,
 }
 
 const FALLBACK_WEIGHT = 1

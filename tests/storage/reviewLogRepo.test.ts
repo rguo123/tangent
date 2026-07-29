@@ -8,6 +8,7 @@ const PREV: FsrsScheduling = {
   dueAt: '2026-01-05T00:00:00.000Z',
   lastReviewedAt: '2026-01-01T00:00:00.000Z',
   state: 2,
+  learningSteps: 0,
 }
 
 describe('reviewLogRepo', () => {

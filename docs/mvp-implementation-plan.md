@@ -247,6 +247,8 @@ Config: JSON file in the app-data dir (`provider`, `model`, `embeddingProvider`)
 - **Lifecycle rules enforced in the repo layer:** regeneration skips `user_edited` cards; concept merge re-points `flashcard_concept` rows without touching card content (mechanism tested now even though the merge-producing coherence agent is Phase 3 of the roadmap)
 - Suspend action on cards (spec lifecycle: `draft | active | suspended`)
 
+*(As built, July 2026: three things the plan didn't anticipate. **The schema was one column short.** `ts-fsrs` keeps short-term learning steps as an index it reads back on the next review; the five scheduling columns from Phase 1 round-trip everything else, but not that — and a card whose step index resets on every load never graduates, it just draws the same 10-minute step forever. Migration 004 adds it to `flashcard` and to `review_log`'s `prev_*` copy. **Cards belong to the extraction batch**, not to a separate undo: a card cites its concept through `flashcard_concept`, so the chip's undo has to delete both or neither, and it refuses outright once a card from the batch has been accepted. **Cardgen is a second model call after the commit**, deliberately — the concepts and their watermarks are on disk before it runs, so a cardgen failure costs the cards and nothing else. The chip reports what was learned either way.)*
+
 **Testable outcome — this is the full product loop:**
 1. `npm run dev` → import a paper → read, highlight, take notes, ask + pin one answer
 2. Switch threads → extraction chip → drafts appear in Artifacts pane

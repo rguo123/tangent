@@ -7,7 +7,18 @@
  * signatures from this one map, so the two sides cannot drift.
  */
 
-import type { Anchor, Document, Entry, TextQuoteSelector, Thread, ThreadStatus } from './entities'
+import type {
+  Anchor,
+  CardLifecycle,
+  Document,
+  Entry,
+  Flashcard,
+  ReviewLog,
+  ReviewRating,
+  TextQuoteSelector,
+  Thread,
+  ThreadStatus,
+} from './entities'
 
 /** A thread joined with its document — what the sidebar renders. */
 export interface ThreadListItem {
@@ -87,6 +98,33 @@ export interface ExtractionSummary {
   /** Existing concepts that gained a new source. A run that adds only mentions
    *  found nothing new, but did learn where else the idea shows up. */
   mentionsAdded: number
+  /** Draft cards written for the new concepts. Fewer than `conceptsAdded` when
+   *  cardgen skipped a concept, and zero when it failed — which costs the cards
+   *  and not the extraction. */
+  cardsAdded: number
+}
+
+/**
+ * Everything the Artifacts pane renders, in one round trip.
+ *
+ * Both queues come back whole rather than as counts plus a lazy fetch: they are
+ * a handful of rows, and a count that can disagree with the list under it is a
+ * header that lies. `activeCount` is the one number no list here implies — the
+ * size of the deck the due queue is a slice of.
+ */
+export interface CardsData {
+  /** The cull queue: drafts for the Field, oldest first. */
+  drafts: Flashcard[]
+  /** The review queue: active cards due now, for the whole Field (spec §4 —
+   *  not just the open thread). */
+  due: Flashcard[]
+  activeCount: number
+}
+
+/** A graded card plus the log row that can take the grade back. */
+export interface ReviewOutcome {
+  card: Flashcard
+  log: ReviewLog
 }
 
 export interface DebugVersions {
@@ -134,6 +172,22 @@ export interface IpcContract {
   /** Reverse a committed batch — the chip's undo. Throws once the batch has
    *  aged out of main's undo window. */
   'extraction:undo': { request: { batchId: string }; response: void }
+  /** Both queues and the deck size, together — the pane re-pulls all of it
+   *  after every verb, so splitting it up would only buy extra round trips. */
+  'cards:state': { request: void; response: CardsData }
+  /** Cull accept: draft → active, with FSRS state initialized. */
+  'cards:accept': { request: { cardId: string }; response: Flashcard }
+  /** Cull edit. Sets `user_edited`, which shields the card from regeneration. */
+  'cards:edit': { request: { cardId: string; front: string; back: string }; response: Flashcard }
+  /** Cull discard. Drafts only — an accepted card is suspended, not deleted. */
+  'cards:discard': { request: { cardId: string }; response: void }
+  'cards:setLifecycle': {
+    request: { cardId: string; lifecycle: Exclude<CardLifecycle, 'draft'> }
+    response: Flashcard
+  }
+  'cards:review': { request: { cardId: string; rating: ReviewRating }; response: ReviewOutcome }
+  /** Undo the last (not-yet-undone) review of one card. */
+  'cards:undoReview': { request: { cardId: string }; response: Flashcard }
   'debug:versions': { request: void; response: DebugVersions }
   'debug:dbStats': { request: void; response: DbStats }
 }
@@ -163,6 +217,13 @@ export interface IpcEvents {
   /** A triggered run failed. Nothing was written and the entries stay due, so
    *  this is information rather than an error to act on. */
   'extraction:failed': { threadId: string; error: string }
+  /**
+   * Main wrote or removed cards without being asked to by the pane — cardgen
+   * after an extraction, or the undo that takes those drafts back. One event
+   * for both, so the cull queue has a single reason to reload rather than one
+   * per producer (regeneration and concept merge are the next two).
+   */
+  'cards:changed': { reason: 'generated' | 'undone' }
 }
 
 export type IpcEventChannel = keyof IpcEvents

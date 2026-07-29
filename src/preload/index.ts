@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { ThreadStatus } from '@shared/entities'
+import type { CardLifecycle, ReviewRating, ThreadStatus } from '@shared/entities'
 import type {
   AskRequest,
   CreateEntryRequest,
@@ -71,6 +71,19 @@ const api = {
       subscribe('extraction:committed', listener),
     onFailed: (listener: (payload: IpcEventPayload<'extraction:failed'>) => void) =>
       subscribe('extraction:failed', listener),
+  },
+  cards: {
+    state: () => invoke('cards:state'),
+    accept: (cardId: string) => invoke('cards:accept', { cardId }),
+    edit: (cardId: string, front: string, back: string) =>
+      invoke('cards:edit', { cardId, front, back }),
+    discard: (cardId: string) => invoke('cards:discard', { cardId }),
+    setLifecycle: (cardId: string, lifecycle: Exclude<CardLifecycle, 'draft'>) =>
+      invoke('cards:setLifecycle', { cardId, lifecycle }),
+    review: (cardId: string, rating: ReviewRating) => invoke('cards:review', { cardId, rating }),
+    undoReview: (cardId: string) => invoke('cards:undoReview', { cardId }),
+    onChanged: (listener: (payload: IpcEventPayload<'cards:changed'>) => void) =>
+      subscribe('cards:changed', listener),
   },
   debug: {
     versions: () => invoke('debug:versions'),

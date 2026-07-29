@@ -16,6 +16,27 @@ export function queueConcepts(provider: MockProvider, ...canonicalTexts: string[
 }
 
 /**
+ * Queue one cardgen proposal: card N for concept N, in the order `planCards`
+ * was handed the concept ids. Extraction runs cardgen straight after the
+ * extraction call, so a test exercising a full run queues both, in that order.
+ */
+export function queueCards(provider: MockProvider, ...fronts: string[]): void {
+  provider.queueStructured({
+    cards: fronts.map((front, i) => ({
+      conceptRef: `c${i + 1}`,
+      front,
+      back: `because ${front}`,
+    })),
+  })
+}
+
+/** Extraction and cardgen both go through `structured()`; the schema name is
+ *  what tells one caller's calls from the other's. */
+export function callsTo(provider: MockProvider, schemaName: string): number {
+  return provider.structuredCalls.filter((c) => c.schemaName === schemaName).length
+}
+
+/**
  * A one-page, uncompressed PDF containing `text` — small enough to build by
  * hand, real enough for pdf.js to parse. Keeps the text-extraction tests free
  * of a binary fixture.

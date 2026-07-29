@@ -955,3 +955,198 @@ body.resizing-vertical * {
 .dev-stats td:first-child {
   opacity: 0.7;
 }
+
+/* ---- Artifacts pane ---------------------------------------------------- */
+
+.pane-counts {
+  flex: none;
+  display: flex;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  opacity: 0.6;
+}
+
+.pane-count.drafts {
+  opacity: 1;
+  color: rgba(122, 90, 245, 1);
+  font-weight: 600;
+}
+
+.artifacts-body {
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+/* The pane is the shortcut target, so it takes focus — but a focus ring
+   around a whole column reads as an error, not as "typing lands here". The
+   card's own accent does that job instead. */
+.artifacts-body:focus {
+  outline: none;
+}
+
+.artifacts-heading {
+  margin: 0 0 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.5;
+}
+
+.artifacts-remaining {
+  float: right;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+/* Drafts are unsorted material; the accent says "this one is waiting on you". */
+.card-draft {
+  border-left: 3px solid rgba(122, 90, 245, 0.8);
+}
+
+.card-rule {
+  width: 100%;
+  margin: 0;
+  border: none;
+  border-top: 1px dashed var(--border);
+}
+
+.card-front {
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.card-back {
+  font-size: 0.9rem;
+  opacity: 0.9;
+}
+
+.card-front > :first-child,
+.card-back > :first-child {
+  margin-top: 0;
+}
+
+.card-front > :last-child,
+.card-back > :last-child {
+  margin-bottom: 0;
+}
+
+.card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.card-footer {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.card-action {
+  font: inherit;
+  font-size: 0.8rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: none;
+  cursor: pointer;
+}
+
+.card-action:hover:not(:disabled) {
+  background: var(--muted);
+}
+
+.card-action:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.card-action.primary {
+  border-color: rgba(122, 90, 245, 0.8);
+}
+
+.card-action.subtle {
+  border: none;
+  opacity: 0.5;
+}
+
+.card-action.subtle:hover {
+  opacity: 1;
+}
+
+/* Again reads as the one that costs you; the rest are equals. */
+.card-action.rating-1 {
+  border-color: color-mix(in srgb, var(--error) 55%, transparent);
+}
+
+.card-action kbd,
+.card-hint {
+  font-size: 0.75rem;
+  opacity: 0.5;
+}
+
+.card-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  opacity: 0.9;
+}
+
+.card-field textarea {
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: none;
+  color: inherit;
+  resize: vertical;
+}
+
+.review-undo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  padding: 0.3rem 0.5rem;
+  font-size: 0.8rem;
+  border-radius: 4px;
+  background: var(--muted);
+}
+
+.review-undo > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.review-undo button {
+  flex: none;
+  font: inherit;
+  font-size: 0.8rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border: none;
+  background: none;
+  cursor: pointer;
+  text-decoration: underline;
+}

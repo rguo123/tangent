@@ -56,6 +56,11 @@ export interface ExtractionBatch {
   threadId: string
   createdConceptIds: string[]
   createdMentionIds: string[]
+  /** The draft cards generated from this batch's new concepts, added by a
+   *  second commit after the model has written them. They belong to the batch
+   *  because the chip's undo has to take them with it — a card outliving the
+   *  concept it cites is a row `flashcard_concept` cannot represent. */
+  createdFlashcardIds: string[]
   /** The watermark each consumed input carried *before* this batch — `null`
    *  for one extracted here for the first time. */
   priorWatermarks: { kind: 'entry' | 'anchor'; id: string; extractedAt: string | null }[]
@@ -72,6 +77,7 @@ export function commitExtraction(
       threadId: plan.threadId,
       createdConceptIds: [],
       createdMentionIds: [],
+      createdFlashcardIds: [],
       priorWatermarks: [],
     }
 
@@ -122,14 +128,61 @@ function stampWatermarks(repos: Repos, plan: ExtractionPlan, batch: ExtractionBa
 }
 
 /**
+ * Write the cards a batch's new concepts produced, and return their ids for the
+ * batch to record.
+ *
+ * Separate from `commitExtraction` because it happens after a second model
+ * call: the concepts are on disk (and the watermarks stamped) before card
+ * generation is even attempted, so a cardgen failure costs the cards, never the
+ * extraction.
+ */
+export function commitCards(
+  db: Database,
+  repos: Repos,
+  fieldId: string,
+  drafts: { conceptId: string; front: string; back: string }[],
+): string[] {
+  const run = db.transaction(() =>
+    drafts.map(
+      (draft) =>
+        repos.flashcards.create({
+          fieldId,
+          conceptIds: [draft.conceptId],
+          front: draft.front,
+          back: draft.back,
+          // Recall-type only in the MVP (spec §0); relationship cards need the
+          // concept graph a later phase builds.
+          cardType: 'recall',
+        }).id,
+    ),
+  )
+  return run()
+}
+
+/**
  * Reverse a commit: drop what it created and put the watermarks back, so the
  * next run sees exactly the work it saw before. Undone inputs are due again,
  * which is the point — undo means "you read that wrong", not "never look at it
  * again".
+ *
+ * Refused outright once a card from the batch has been accepted: that card has
+ * scheduling state and possibly review history, and there is no version of
+ * "undo the extraction" that also leaves it standing, since its concept is
+ * going away. Better to say so than to half-reverse.
  */
 export function undoExtraction(db: Database, repos: Repos, batch: ExtractionBatch): void {
+  // A card the user already discarded is gone and reverses fine; one they kept
+  // (accepted, then possibly suspended) is the case this refuses.
+  const kept = batch.createdFlashcardIds.some((id) => {
+    const lifecycle = repos.flashcards.getById(id)?.lifecycle
+    return lifecycle !== undefined && lifecycle !== 'draft'
+  })
+  if (kept) throw new Error('Those cards are already in review — nothing was undone.')
+
   const run = db.transaction(() => {
-    // Mentions first: a concept can't be deleted while one still points at it.
+    // Cards before mentions before concepts: each of the three is what the FK
+    // on the next one points at.
+    for (const id of batch.createdFlashcardIds) repos.flashcards.remove(id)
     for (const id of batch.createdMentionIds) repos.concepts.deleteMention(id)
     for (const id of batch.createdConceptIds) repos.concepts.delete(id)
     for (const { kind, id, extractedAt } of batch.priorWatermarks) {

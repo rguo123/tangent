@@ -13,6 +13,7 @@ interface ReviewLogRow {
   prev_due_at: string | null
   prev_last_reviewed_at: string | null
   prev_state: FsrsState | null
+  prev_learning_steps: number | null
   undone: number
 }
 
@@ -23,13 +24,14 @@ function toReviewLog(r: ReviewLogRow): ReviewLog {
     rating: r.rating,
     reviewedAt: r.reviewed_at,
     scheduledInterval: r.scheduled_interval,
-    prevScheduling: schedulingFrom(
-      r.prev_stability,
-      r.prev_difficulty,
-      r.prev_due_at,
-      r.prev_last_reviewed_at,
-      r.prev_state,
-    ),
+    prevScheduling: schedulingFrom({
+      stability: r.prev_stability,
+      difficulty: r.prev_difficulty,
+      dueAt: r.prev_due_at,
+      lastReviewedAt: r.prev_last_reviewed_at,
+      state: r.prev_state,
+      learningSteps: r.prev_learning_steps,
+    }),
     undone: r.undone !== 0,
   }
 }
@@ -47,8 +49,9 @@ export function createReviewLogRepo(db: Database) {
   const insert = db.prepare(
     `INSERT INTO review_log
        (id, flashcard_id, rating, reviewed_at, scheduled_interval,
-        prev_stability, prev_difficulty, prev_due_at, prev_last_reviewed_at, prev_state, undone)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
+        prev_stability, prev_difficulty, prev_due_at, prev_last_reviewed_at, prev_state,
+        prev_learning_steps, undone)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
   )
   const byFlashcard = db.prepare(
     'SELECT * FROM review_log WHERE flashcard_id = ? ORDER BY reviewed_at, rowid',
@@ -77,6 +80,7 @@ export function createReviewLogRepo(db: Database) {
         p?.dueAt ?? null,
         p?.lastReviewedAt ?? null,
         p?.state ?? null,
+        p?.learningSteps ?? null,
       )
       return toReviewLog(byIdStmt.get(id) as ReviewLogRow)
     },

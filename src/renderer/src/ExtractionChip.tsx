@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { useAppStore } from './state/appStore'
 import { useExtractionStore } from './state/extractionStore'
 
 /** Long enough to read and act on, short enough that it never becomes furniture. */
@@ -27,6 +28,16 @@ export default function ExtractionChip() {
   return (
     <div className={notice.failed ? 'extraction-chip failed' : 'extraction-chip'} role="status">
       <span className="extraction-chip-text">{notice.text}</span>
+      {/* Drafts are the one extraction output that needs the user; the chip is
+          where they hear about it, so it's also the way in. */}
+      {notice.cardsAdded > 0 && (
+        <button
+          className="extraction-chip-action"
+          onClick={() => useAppStore.getState().openArtifactsPane()}
+        >
+          cull
+        </button>
+      )}
       {notice.batchId && (
         <button className="extraction-chip-action" onClick={() => void undo()}>
           undo

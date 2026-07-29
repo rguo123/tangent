@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import Sidebar from './sidebar/Sidebar'
+import ArtifactsPane from './panes/ArtifactsPane/ArtifactsPane'
 import DocumentPane from './panes/DocumentPane/DocumentPane'
 import NotesPane from './panes/NotesPane/NotesPane'
 import DevStats from './DevStats'
@@ -14,8 +15,10 @@ export default function App() {
   const activeThreadId = useAppStore((s) => s.activeThreadId)
   const documentPaneOpen = useAppStore((s) => s.documentPaneOpen)
   const notesPaneOpen = useAppStore((s) => s.notesPaneOpen)
+  const artifactsPaneOpen = useAppStore((s) => s.artifactsPaneOpen)
   const toggleDocumentPane = useAppStore((s) => s.toggleDocumentPane)
   const toggleNotesPane = useAppStore((s) => s.toggleNotesPane)
+  const toggleArtifactsPane = useAppStore((s) => s.toggleArtifactsPane)
   const error = useAppStore((s) => s.error)
   const clearError = useAppStore((s) => s.clearError)
   const runExtraction = useExtractionStore((s) => s.runNow)
@@ -53,7 +56,8 @@ export default function App() {
   const panes: SplitPane[] = [{ id: 'sidebar', minSize: 150, node: <Sidebar /> }]
   if (documentPaneOpen) panes.push({ id: 'document', minSize: 280, node: <DocumentPane /> })
   if (notesPaneOpen) panes.push({ id: 'notes', minSize: 260, node: <NotesPane /> })
-  if (!documentPaneOpen && !notesPaneOpen) {
+  if (artifactsPaneOpen) panes.push({ id: 'artifacts', minSize: 260, node: <ArtifactsPane /> })
+  if (!documentPaneOpen && !notesPaneOpen && !artifactsPaneOpen) {
     panes.push({
       id: 'empty',
       node: <p className="pane-status all-closed">Both panes are closed.</p>,
@@ -76,6 +80,12 @@ export default function App() {
             onClick={toggleNotesPane}
           >
             Notes
+          </button>
+          <button
+            className={artifactsPaneOpen ? 'pane-toggle on' : 'pane-toggle'}
+            onClick={toggleArtifactsPane}
+          >
+            Cards
           </button>
           {/* Dev affordance: extraction is otherwise trigger-driven, and
               waiting out a 90s idle timer is no way to test it. */}

@@ -3,6 +3,7 @@ import { nowIso } from '../util'
 import { sql as initialSchema } from './001_initial_schema'
 import { sql as anchorWatermark } from './002_anchor_watermark'
 import { sql as documentSourceUrl } from './003_document_source_url'
+import { sql as fsrsLearningSteps } from './004_fsrs_learning_steps'
 
 interface Migration {
   id: number
@@ -15,6 +16,7 @@ const migrations: Migration[] = [
   { id: 1, name: 'initial_schema', sql: initialSchema },
   { id: 2, name: 'anchor_watermark', sql: anchorWatermark },
   { id: 3, name: 'document_source_url', sql: documentSourceUrl },
+  { id: 4, name: 'fsrs_learning_steps', sql: fsrsLearningSteps },
 ]
 
 /** Apply all pending migrations, each in its own transaction. Idempotent. */

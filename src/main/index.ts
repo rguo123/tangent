@@ -8,6 +8,7 @@ import { initStorage } from './db/init'
 import { registerAssetProtocol, registerAssetScheme } from './documents/assetProtocol'
 import { loadEnvFiles } from './env'
 import { registerAgentIpc } from './ipc/agent'
+import { registerCardIpc } from './ipc/cards'
 import { registerDebugIpc } from './ipc/debug'
 import { registerDocumentIpc } from './ipc/documents'
 import { emitToRenderers } from './ipc/emit'
@@ -92,6 +93,7 @@ app.whenReady().then(() => {
   registerEntryIpc(storage, extraction.touch)
   registerAgentIpc(agent, extraction.touch)
   registerExtractionIpc(extraction)
+  registerCardIpc(storage)
   createWindow()
 
   app.on('activate', () => {
